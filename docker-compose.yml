@@ -1,0 +1,21 @@
+services:
+  collector:
+    build: .
+    image: malware-collector:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - SAMPLES_DIR=/samples
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    volumes:
+      - type: bind
+        source: /srv/unsecure_samples
+        target: /samples
+        read_only: false
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

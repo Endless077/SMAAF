@@ -6,10 +6,7 @@ LOG_SYS = get_logging()
 import os
 import sys
 import signal
-
 from datetime import datetime, timezone
-
-###################################################################################################
 
 # Server
 import uvicorn
@@ -26,8 +23,8 @@ from .utilities import *
 
 ###################################################################################################
 
-# To Run: uvicorn server:app --host 127.0.0.1 --port 8080 --reload
-# To Run: uvicorn server:app --host 127.0.0.1 --port 8080
+# To Run: uvicorn main:app --host 127.0.0.1 --port 8080 --reload
+# To Run: uvicorn main:app --host 127.0.0.1 --port 8080
 
 TAG = "FastAPI"
 
@@ -61,22 +58,26 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
+###################################################################################################
+
 @app.post("/upload", response_model=UploadResponse, status_code=201, tags=["Upload"],
     summary="Upload a sample and persist metadata.",
     description=("Accepts a file (multipart/form-data) and stores it under /samples with a JSON metadata file.")
 )
 async def upload(
     file: UploadFile = File(..., description="The file to upload."),
-    source: str | None = Form(default=None),
-    tags: list[str] | None = Form(default=None),
-    note: str | None = Form(default=None),
+    source: str | None = Form(default=None, description="Source where file come from."),
+    tags: list[str] | None = Form(default=None, description="Some tags about the file."),
+    note: str | None = Form(default=None, description="Some notes about the file.")
 ):
 
     try:
+        # Ensure that samples directory exists
         ensure_samples_dir()
 
+        # Get the file and extract the metadata
         content = await file.read()
-        meta_dict = full_metadata_from_bytes(file.filename, content)
+        meta_dict = metadata_extractor(file.filename, content)
 
         # Build FileMetadata Pydantic object (includes empty external_providers map)
         metadata = FileMetadata(**meta_dict)
@@ -100,6 +101,7 @@ async def upload(
             "tags": tags,
             "note": note,
         }
+
         write_metadata(meta_path, meta_obj)
 
         LOG_SYS.write(TAG, f"New sample stored: {dst_path}")
@@ -119,45 +121,30 @@ async def upload(
         LOG_SYS.write(TAG, f"Upload error: {e}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
 
-
-@app.get(
-    "/api/v1/metadata/search",
-    response_model=MetadataSearchResponse,
-    tags=["Collector"],
+@app.get("/metadata/search", response_model=QueryResponse, status_code=200, tags=["Metadata"],
     summary="Search metadata by filename or hash, with optional filters (or list all)",
     description=(
-        "If `q` is provided and looks like a hash, match by hash; otherwise match exact filename. "
-        "If `q` is omitted, start from the full list. "
-        "Then apply optional filters (tags/source/ext/file_kind/mime/size/date/providers). "
-        "All filters are AND-combined."
+        "This query applies optional filters if provided by the user (all filters are AND-combined).\n"
+        "If `query` is provided and looks like a hash, match by hash; otherwise match exact filename.\n"
+        "If `query` is omitted, process a big get query from the samples directory with all metadata."
     ),
 )
 async def search_metadata_route(
-    q: Optional[str] = Query(
-        None, description="Filename OR hash (sha256/sha1/md5). Leave empty to list all."
-    ),
-    # --- filters ---
-    tags: Optional[List[str]] = Query(
-        None, description="Repeatable tag filter: ?tags=a&tags=b"
-    ),
-    tags_mode: str = Query(
-        "any", pattern="^(any|all)$",
-        description="'any' = at least one tag matches; 'all' = all provided tags must be present."
-    ),
+    query: Optional[str] = Query(None, description="Leave empty to list all (filename OR hash (md5/sha1/sha256)."),
+    
+    tags: Optional[List[str]] = Query(None, description="Repeatable tag filter (?tags=...&tags=...)."),
+    tags_mode: str = Query("any", pattern="^(any|all)$", description="Provide a tags AND/OR query."),
     source: Optional[str] = Query(None, description="Exact source match (case-insensitive)."),
-    ext: Optional[str] = Query(None, description="File extension, e.g. '.exe' or 'exe'."),
-    file_kind: Optional[str] = Query(None, description="PE | ELF | MACHO | UNKNOWN"),
+    ext: Optional[str] = Query(None, description="File extension (with or without the dot '.')."),
+    file_kind: Optional[str] = Query(None, description="ELF | MACHO | PE | Unknown"),
     mime_contains: Optional[str] = Query(None, description="Substring on libmagic description."),
     min_size: Optional[int] = Query(None, ge=0, description="Minimum size in bytes."),
     max_size: Optional[int] = Query(None, ge=0, description="Maximum size in bytes."),
     since: Optional[str] = Query(None, description="ISO datetime filter (received_at >=)."),
-    until: Optional[str] = Query(None, description="ISO datetime filter (received_at <=)."),
-    has_providers: Optional[bool] = Query(
-        None, description="True: only entries with external_providers; False: only without."
-    ),
+    until: Optional[str] = Query(None, description="ISO datetime filter (received_at <=).")
 ):
-    # Step 1: base set (query or all)
-    base = search_metadata(q) if q else list_all_metadata()
+    # Step 1: base set (query or get all)
+    base = search_metadata(query) if query else list_all_metadata()
 
     # Step 2: apply filters (all AND-combined)
     filtered = filter_metadata(
@@ -171,12 +158,10 @@ async def search_metadata_route(
         min_size=min_size,
         max_size=max_size,
         since_iso=since,
-        until_iso=until,
-        has_providers=has_providers,
+        until_iso=until
     )
 
-    return MetadataSearchResponse(count=len(filtered), results=filtered)
-
+    return QueryResponse(count=len(filtered), results=filtered)
 
 ###################################################################################################
 
