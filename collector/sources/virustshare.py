@@ -33,11 +33,11 @@ class VirusShareError(RuntimeError):
     pass
 
 @dataclass
-class VirusShareClient:
+class VSClient:
     api_key: Optional[str] = None
     timeout: Optional[int] = None
-    user_agent: str = "SMAF/VirusShareClient"
-    backoff_seconds: float = 1.5  # optional sleep when 204 is received
+    backoff_seconds: float = 1.5
+    user_agent: str = "SMAF/VSClient"
 
     def __post_init__(self) -> None:
         self.api_key = self.api_key or settings.VS_API_KEY

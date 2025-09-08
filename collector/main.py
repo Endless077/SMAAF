@@ -16,8 +16,13 @@ import uvicorn
 
 from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
-from fastapi import File, Form, Query, UploadFile
+from fastapi import File, Form, Query, Body, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+
+# Sources
+from sources.endpoints.endpoints_vt import *
+from sources.endpoints.endpoints_vs import *
+from sources.endpoints.endpoints_mb import *
 
 # Stuff
 from .models import *
@@ -78,10 +83,7 @@ async def upload(
 ):
 
     try:
-        # Ensure that samples directory exists
-        ensure_samples_dir()
-
-        # Get the file and extract the metadata
+        # Extract the metadata
         content = await file.read()
         meta_dict = metadata_extractor(file.filename, content)
 
@@ -90,16 +92,16 @@ async def upload(
 
         # Paths
         sha256 = metadata.sha256
-        dst_path, meta_path = build_sample_paths(sha256, file.filename)
+        file_path, meta_path = build_sample_paths(sha256, file.filename)
 
         # Persist sample
-        if not os.path.exists(dst_path):
-            write_file(dst_path, content)
+        if not os.path.exists(file_path):
+            write_file(file_path, content)
 
         # Persist metadata JSON
         meta_obj = {
             "id": sha256,
-            "stored_path": dst_path,
+            "stored_path": file_path,
             "metadata_path": meta_path,
             "metadata": metadata.model_dump(),
             "tags": tags,
@@ -110,11 +112,11 @@ async def upload(
 
         write_metadata(meta_path, meta_obj)
 
-        LOG_SYS.write(TAG, f"New sample stored: {dst_path}")
+        LOG_SYS.write(TAG, f"New sample stored: {file_path}")
 
         return UploadResponse(
             id=sha256,
-            stored_path=dst_path,
+            stored_path=file_path,
             metadata_path=meta_path,
             metadata=metadata,
             tags=tags,
@@ -135,7 +137,7 @@ async def upload(
         "If `query` is omitted, process a big get query from the samples directory with all metadata."
     ),
 )
-async def search_metadata_route(
+async def metadata_search(
     query: Optional[str] = Query(None, description="Leave empty to list all (filename OR hash (md5/sha1/sha256)."),
     
     tags: Optional[List[str]] = Query(None, description="Repeatable tag filter (?tags=...&tags=...)."),
@@ -168,6 +170,58 @@ async def search_metadata_route(
     )
 
     return QueryResponse(count=len(filtered), results=filtered)
+
+@app.post("/metadata/update", tags=["Metadata"], status_code=200)
+async def metadata_update(sample: str, provider: str):
+    # Step 1: search metadata
+    results = search_metadata(sample)
+    if not results:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    result = results[0]
+
+    meta_path = result.get("metadata_path")
+    if not meta_path or not os.path.exists(meta_path):
+        raise HTTPException(status_code=500, detail="Metadata file not found on disk")
+
+    # Step 2: chiama provider generico
+    key = provider.strip().lower()
+    if key not in PROVIDERS:
+        raise HTTPException(status_code=400, detail=f"Provider '{provider}' not supported")
+
+    try:
+        provider_resp = query_provider(key, sample)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Provider '{provider}' call failed: {e!s}")
+
+    # Step 3: aggiorna JSON
+    with open(meta_path, "r", encoding="utf-8") as f:
+        current_obj = json.load(f)
+
+    external = current_obj.get("external_provider") or {}
+    external[key] = provider_resp
+    current_obj["external_provider"] = external
+
+    write_metadata(meta_path, current_obj)
+
+    return {
+        "status": "updated",
+        "sample": sample,
+        "provider": key,
+        "update": provider_resp,
+    }
+
+
+@app.post("/metadata/virustotal/", tags=["VirusTotal"], status_code=200)
+async def metadata_vt_update(sample: str):
+    raise NotImplementedError
+
+@app.post("/metadata/virusshare/update", tags=["VirusShare"], status_code=200)
+async def metadata_vs_update(sample: str): 
+    raise NotImplementedError
+
+@app.post("/metadata/malwarebazaar/update", tags=["MalwareBazaar"], status_code=200)
+async def metadata_mb_update(sample: str, provider: str):
+    raise NotImplementedError
 
 ###################################################################################################
 

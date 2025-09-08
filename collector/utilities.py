@@ -214,6 +214,21 @@ def ssdeep(b: bytes) -> Optional[str]:
             return None
     return None
 
+def looks_like_hex(s: str) -> bool:
+    try:
+        int(s, 16)
+        return True
+    except Exception:
+        return False
+
+def classify_hash(s: str) -> str | None:
+    sl = len(s)
+    s_lower = s.lower()
+    if sl == 32 and looks_like_hex(s_lower): return "md5"
+    if sl == 40 and looks_like_hex(s_lower): return "sha1"
+    if sl == 64 and looks_like_hex(s_lower): return "sha256"
+    return None
+
 ###################################################################################################
 
 # ================= Unified extractor =================

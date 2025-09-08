@@ -11,7 +11,10 @@ import json
 from datetime import datetime
 from typing import List, Dict, Tuple, Iterable, Generator, Optional, Any
 
+from utilities import *
+
 SAMPLES_DIR = os.getenv("SAMPLES_DIR", "./samples")
+PROVIDERS = {"virustotal", "virusshare", "malwarebazaar"}
 
 ###################################################################################################
 
@@ -31,10 +34,6 @@ def _norm_ext(ext: Optional[str]) -> Optional[str]:
     return e if e.startswith(".") else f".{e}"
 
 ###################################################################################################
-
-def ensure_samples_dir() -> str:
-    os.makedirs(SAMPLES_DIR, exist_ok=True)
-    return SAMPLES_DIR
 
 def build_sample_paths(sha256: str, original_name: str) -> Tuple[str, str]:
     safe_name = "".join(c for c in original_name if c.isalnum() or c in (".", "_", "-", " ")).strip()
@@ -73,36 +72,6 @@ def list_all_metadata() -> List[Dict[str, Any]]:
     return out
 
 ###################################################################################################
-
-def looks_like_hex(s: str) -> bool:
-    try:
-        int(s, 16)
-        return True
-    except Exception:
-        return False
-
-def classify_hash(s: str) -> str | None:
-    sl = len(s)
-    s_lower = s.lower()
-    if sl == 32 and looks_like_hex(s_lower): return "md5"
-    if sl == 40 and looks_like_hex(s_lower): return "sha1"
-    if sl == 64 and looks_like_hex(s_lower): return "sha256"
-    return None
-
-def search_metadata(query: str) -> List[Dict[str, Any]]:
-    query = query.strip()
-    kind = classify_hash(query)
-
-    results: List[Dict[str, Any]] = []
-    for obj in list_all_metadata():
-        meta = obj.get("metadata", {})
-        if kind:
-            if meta.get(kind, "").lower() == query.lower():
-                results.append(obj)
-        else:
-            if meta.get("filename") == query:
-                results.append(obj)
-    return results
 
 def filter_metadata(
     objects: Iterable[Dict[str, Any]],
@@ -190,3 +159,29 @@ def filter_metadata(
         out.append(obj)
 
     return out
+
+def search_metadata(query: str) -> List[Dict[str, Any]]:
+    query = query.strip()
+    hash = classify_hash(query)
+
+    results: List[Dict[str, Any]] = []
+    for obj in list_all_metadata():
+        meta = obj.get("metadata", {})
+        if hash:
+            if meta.get(hash, "").lower() == query.lower():
+                results.append(obj)
+        else:
+            if meta.get("filename") == query:
+                results.append(obj)
+
+    return results
+
+
+###################################################################################################7
+
+def extract_provider(provider: str, sample: str) -> dict:
+    return {"provider": provider, "sample": sample, "ok": True}
+
+def query_provider(provider: str, sample: str) -> dict:
+    return {"provider": provider, "sample": sample, "ok": True}
+
