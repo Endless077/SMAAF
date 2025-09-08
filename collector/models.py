@@ -6,12 +6,14 @@
 #    |_____||_____|'.__.'  '.__.;__]'.__.'[___][\__) ) 
 #                                                      
 
-from typing import List, Optional, Dict, Any
+# Imports
+from typing import List, Dict, Optional, Any
 from pydantic import BaseModel, Field
 from datetime import datetime
 
 ###################################################################################################
 
+# ================= ELF/MachO/PE =================
 class ELFBasicMetadata(BaseModel):
     class_type: Optional[str] = None
     machine: Optional[str] = None
@@ -37,6 +39,7 @@ class PEMetadata(BaseModel):
 
 ###################################################################################################
 
+# ================= Metadata =================
 class FileMetadata(BaseModel):
     filename: str
     size_bytes: int
@@ -55,6 +58,7 @@ class FileMetadata(BaseModel):
 
 ###################################################################################################
 
+# ================= Request/Response =================
 class UploadRequest(BaseModel):
     tags: Optional[List[str]] = Field(default=None, description="Optional labels.")
     source: Optional[str] = Field(default=None, description="Optional Source.")
@@ -70,8 +74,13 @@ class UploadResponse(BaseModel):
     note: Optional[str] = None
     upload_time: datetime
 
-class QueryResponse(BaseModel):
+class SearchResponse(BaseModel):
     count: int
     results: List[Dict[str, Any]]
+
+class UpdateResponse(BaseModel):
+    status: str
+    sample: str
+    provider: str
 
 ###################################################################################################

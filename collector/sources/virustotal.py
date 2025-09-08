@@ -42,7 +42,7 @@ from typing import Any, Dict, Optional
 import vt
 from vt.error import APIError
 
-from config.config import settings
+from configs.config import settings
 
 
 class VTClient:

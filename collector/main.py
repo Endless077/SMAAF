@@ -6,6 +6,7 @@
 #    |_____|  \'-;__/[\__) )\__/|____| |____||_____|  |_____| 
 #                                                             
 
+# Imports
 import os
 import sys
 import signal
@@ -15,19 +16,21 @@ from datetime import datetime, timezone
 import uvicorn
 
 from fastapi import FastAPI, HTTPException, Request, Response, status
-from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi import File, Form, Query, Body, UploadFile
+
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 
-# Sources
+# Providers Endpoints
 from sources.endpoints.endpoints_vt import *
 from sources.endpoints.endpoints_vs import *
 from sources.endpoints.endpoints_mb import *
 
-# Stuff
-from .models import *
-from .storage import *
-from .utilities import *
+# Project Stuffs
+from models import *
+from storage import *
+from utilities import *
 
 from utils.logger import get_logging
 LOG_SYS = get_logging()
@@ -92,7 +95,7 @@ async def upload(
 
         # Paths
         sha256 = metadata.sha256
-        file_path, meta_path = build_sample_paths(sha256, file.filename)
+        file_path, metadata_path = build_paths(file.filename, sha256)
 
         # Persist sample
         if not os.path.exists(file_path):
@@ -102,7 +105,7 @@ async def upload(
         meta_obj = {
             "id": sha256,
             "stored_path": file_path,
-            "metadata_path": meta_path,
+            "metadata_path": metadata_path,
             "metadata": metadata.model_dump(),
             "tags": tags,
             "source": source,
@@ -110,14 +113,14 @@ async def upload(
             "upload_time": datetime.now(timezone.utc).isoformat()
         }
 
-        write_metadata(meta_path, meta_obj)
+        write_json(metadata_path, meta_obj)
 
         LOG_SYS.write(TAG, f"New sample stored: {file_path}")
 
         return UploadResponse(
             id=sha256,
             stored_path=file_path,
-            metadata_path=meta_path,
+            metadata_path=metadata_path,
             metadata=metadata,
             tags=tags,
             source=source,
@@ -129,7 +132,7 @@ async def upload(
         LOG_SYS.write(TAG, f"Upload error: {e}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
 
-@app.get("/metadata/search", response_model=QueryResponse, status_code=200, tags=["Metadata"],
+@app.get("/metadata/search", response_model=SearchResponse, status_code=200, tags=["Metadata"],
     summary="Search metadata by filename or hash, with optional filters (or list all)",
     description=(
         "This query applies optional filters if provided by the user (all filters are AND-combined).\n"
@@ -169,47 +172,68 @@ async def metadata_search(
         until_iso=until
     )
 
-    return QueryResponse(count=len(filtered), results=filtered)
+    return SearchResponse(count=len(filtered), results=filtered)
 
-@app.post("/metadata/update", tags=["Metadata"], status_code=200)
+app.post("/metadata/update", response_model=UpdateResponse,  status_code=204, tags=["Metadata"],
+    summary="Update metadata from external providers.",
+    description=(
+        "Update the local metadata of a stored sample by querying an external provider API "
+        "(e.g., VirusTotal, VirusShare, MalwareBazaar, ). "
+        "The provider's response is stored inside the sample's `metadata.external_providers` section. "
+        "Returns an object indicating the update status, the sample identifier, and the provider used."
+    ), 
+)
 async def metadata_update(sample: str, provider: str):
-    # Step 1: search metadata
+    # Step 1: search sample metadata
     results = search_metadata(sample)
     if not results:
-        raise HTTPException(status_code=404, detail="Sample not found")
+        raise HTTPException(status_code=404, detail="Sample not found.")
     result = results[0]
 
-    meta_path = result.get("metadata_path")
-    if not meta_path or not os.path.exists(meta_path):
-        raise HTTPException(status_code=500, detail="Metadata file not found on disk")
+    metadata_path = result.get("metadata_path")
+    if not metadata_path or not os.path.exists(metadata_path):
+        raise HTTPException(status_code=500, detail="Metadata file not found on disk.")
 
-    # Step 2: chiama provider generico
-    key = provider.strip().lower()
-    if key not in PROVIDERS:
-        raise HTTPException(status_code=400, detail=f"Provider '{provider}' not supported")
+    # Step 2: query information via providers
+    provider_key = provider.strip().lower()
+    if provider not in Settings.PROVIDERS:
+        raise HTTPException(status_code=400, detail=f"Provider '{provider}' not supported.")
 
     try:
-        provider_resp = query_provider(key, sample)
+        provider_response = query_provider(sample, provider_key)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Provider '{provider}' call failed: {e!s}")
 
-    # Step 3: aggiorna JSON
-    with open(meta_path, "r", encoding="utf-8") as f:
-        current_obj = json.load(f)
+    # Step 3: read the metadata section and update
+    metadata_file = read_json(metadata_path)
+    if not isinstance(metadata_file, dict):
+        raise HTTPException(status_code=500, detail="Invalid metadata JSON")
 
-    external = current_obj.get("external_provider") or {}
-    external[key] = provider_resp
-    current_obj["external_provider"] = external
+    metadata = metadata_file.get("metadata")
+    if not isinstance(metadata, dict):
+        raise HTTPException(status_code=500, detail="'metadata' section missing or invalid")
 
-    write_metadata(meta_path, current_obj)
+    external_providers = metadata.get("external_providers")
+    if external_providers is None:
+        external_providers = {}
+    elif not isinstance(external_providers, dict):
+        raise HTTPException(status_code=500, detail="'external_providers' must be an object")
 
+    # serialize the query provider response into JSON
+    external_providers[provider_key] = jsonable_encoder(provider_response)
+
+    # save the structure in the metadata file
+    metadata["external_providers"] = external_providers
+    metadata_file["metadata"] = metadata
+    write_json(metadata_path, metadata_file)
+
+    
     return {
         "status": "updated",
         "sample": sample,
-        "provider": key,
-        "update": provider_resp,
+        "provider": provider_key,
+        "update": external_providers[provider_key],
     }
-
 
 @app.post("/metadata/virustotal/", tags=["VirusTotal"], status_code=200)
 async def metadata_vt_update(sample: str):
@@ -220,7 +244,7 @@ async def metadata_vs_update(sample: str):
     raise NotImplementedError
 
 @app.post("/metadata/malwarebazaar/update", tags=["MalwareBazaar"], status_code=200)
-async def metadata_mb_update(sample: str, provider: str):
+async def metadata_mb_update(sample: str):
     raise NotImplementedError
 
 ###################################################################################################

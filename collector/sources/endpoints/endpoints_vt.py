@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, Form, HTTPException
+from fastapi import UploadFile, Form, HTTPException
 from fastapi.responses import JSONResponse
 from pathlib import Path
 import shutil

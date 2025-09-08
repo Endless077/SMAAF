@@ -25,7 +25,7 @@ import json
 import time
 import requests
 
-from config.config import settings
+from configs.config import settings
 
 API_BASE = "https://virusshare.com/apiv2"
 

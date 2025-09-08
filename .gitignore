@@ -1,4 +1,13 @@
+# Virtual Environments
 .venv
+
+# Project Configuration
 config
+settings
+
+# Malware Storage
+download
 samples
+
+# Python Cache
 __pycache__

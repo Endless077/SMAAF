@@ -6,70 +6,23 @@
 #     \______.' \__/ '.__.' [___]   \'-;__/.',__`  '.__.' 
 #                                         ( ( __))        
 
-import os
-import json
-from datetime import datetime
-from typing import List, Dict, Tuple, Iterable, Generator, Optional, Any
+# Imports
+from typing import List, Dict, Iterable, Callable, Generator, Optional, Any
 
+# Project Modules
+from metadata import *
 from utilities import *
 
-SAMPLES_DIR = os.getenv("SAMPLES_DIR", "./samples")
-PROVIDERS = {"virustotal", "virusshare", "malwarebazaar"}
+# Project Configs
+from configs.config import Settings
 
 ###################################################################################################
 
-def _iter_metadata_files() -> Generator[str, None, None]:
-    if not os.path.isdir(SAMPLES_DIR):
-        return
-    for name in os.listdir(SAMPLES_DIR):
-        if name.lower().endswith(".json"):
-            yield os.path.join(SAMPLES_DIR, name)
+def extract_provider(provider: str, sample: str) -> dict:
+    return {"provider": provider, "sample": sample, "ok": True}
 
-def _norm_ext(ext: Optional[str]) -> Optional[str]:
-    if not ext:
-        return None
-    e = ext.strip().lower()
-    if not e:
-        return None
-    return e if e.startswith(".") else f".{e}"
-
-###################################################################################################
-
-def build_sample_paths(sha256: str, original_name: str) -> Tuple[str, str]:
-    safe_name = "".join(c for c in original_name if c.isalnum() or c in (".", "_", "-", " ")).strip()
-    
-    if not safe_name:
-        safe_name = "sample.bin"
-    
-    fname = f"{sha256}_{safe_name}"
-    file_path = os.path.join(SAMPLES_DIR, fname)
-    meta_path = os.path.join(SAMPLES_DIR, f"{sha256}.json")
-    return file_path, meta_path
-
-def write_file(path: str, data: bytes) -> None:
-    with open(path, "wb") as f:
-        f.write(data)
-
-def write_metadata(path: str, obj: dict) -> None:
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(obj, f, indent=2, ensure_ascii=False, sort_keys=True)
-
-###################################################################################################
-
-def load_metadata_file(path: str) -> Dict[str, Any] | None:
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return None
-
-def list_all_metadata() -> List[Dict[str, Any]]:
-    out: List[Dict[str, Any]] = []
-    for p in _iter_metadata_files():
-        obj = load_metadata_file(p)
-        if obj:
-            out.append(obj)
-    return out
+def query_provider(provider: str, sample: str) -> dict:
+    return {"provider": provider, "sample": sample, "ok": True}
 
 ###################################################################################################
 
@@ -86,80 +39,61 @@ def filter_metadata(
     since_iso: Optional[str] = None,
     until_iso: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    
-    ext = _norm_ext(ext)
-    src_norm = source.strip().lower() if source else None
-    fk_norm  = file_kind.strip().upper() if file_kind else None
-    mime_sub = mime_contains.strip().lower() if mime_contains else None
-    tags_set = set([t.strip().lower() for t in (tags or []) if t and t.strip()])
-    
-    def parse_dt(s: Optional[str]) -> Optional[datetime]:
-        if not s:
-            return None
-        try:
-            if s.endswith("Z"):
-                s = s[:-1] + "+00:00"
-            return datetime.fromisoformat(s)
-        except Exception:
-            return None
+    ext_norm   = norm_ext(ext)
+    src_norm   = norm_lower(source)
+    fk_norm    = norm_upper(file_kind)
+    mime_sub   = norm_lower(mime_contains)
+    tags_set   = {t.strip().casefold() for t in (tags or []) if t and t.strip()}
+    since_dt   = parse_iso(since_iso)
+    until_dt   = parse_iso(until_iso)
 
-    since_dt = parse_dt(since_iso)
-    until_dt = parse_dt(until_iso)
+    if tags_mode not in {"any", "all"}:
+        raise ValueError("tags_mode must be 'any' or 'all'")
 
-    out: List[Dict[str, Any]] = []
-    for obj in objects:
-        meta: Dict[str, Any] = obj.get("metadata", {})
-        
-        # --- tags ---
-        if tags_set:
-            obj_tags = set([str(t).strip().lower() for t in (obj.get("tags") or [])])
-            if tags_mode == "all":
-                if not tags_set.issubset(obj_tags):
-                    continue
-            else:
-                if obj_tags.isdisjoint(tags_set):
-                    continue
+    predicates: List[Callable[[Dict[str, Any]], bool]] = []
 
-        # --- source ---
-        if src_norm:
-            if (obj.get("source") or "").strip().lower() != src_norm:
-                continue
+    # --- tags ---
+    if tags_set:
+        if tags_mode == "all":
+            predicates.append(lambda obj: tags_set.issubset({norm_lower(t) for t in (obj.get("tags") or [])}))
+        else:
+            predicates.append(lambda obj: not set({*(norm_lower(t) for t in (obj.get("tags") or []))}).isdisjoint(tags_set))
 
-        # --- extension ---
-        if ext:
-            if (meta.get("ext") or "").strip().lower() != ext:
-                continue
+    # --- source ---
+    if src_norm:
+        predicates.append(lambda obj: norm_lower(obj.get("source")) == src_norm)
 
-        # --- file kind ---
-        if fk_norm:
-            if (meta.get("file_kind") or "").strip().upper() != fk_norm:
-                continue
+    # --- extension ---
+    if ext_norm:
+        predicates.append(lambda obj: norm_lower((obj.get("metadata") or {}).get("ext")) == ext_norm)
 
-        # --- mime substring ---
-        if mime_sub:
-            mm = (meta.get("mime_magic") or "").strip().lower()
-            if mime_sub not in mm:
-                continue
+    # --- file kind ---
+    if fk_norm:
+        predicates.append(lambda obj: norm_upper((obj.get("metadata") or {}).get("file_kind")) == fk_norm)
 
-        # --- size range ---
-        size = int(meta.get("size_bytes") or 0)
-        if min_size is not None and size < min_size:
-            continue
-        if max_size is not None and size > max_size:
-            continue
+    # --- mime substring ---
+    if mime_sub:
+        predicates.append(lambda obj: mime_sub in norm_lower((obj.get("metadata") or {}).get("mime_magic")))
 
-        # --- datetime range ---
-        ra = obj.get("upload_time")
-        ra_dt = parse_dt(ra)
-        if since_dt and (ra_dt is None or ra_dt < since_dt):
-            continue
-        if until_dt and (ra_dt is None or ra_dt > until_dt):
-            continue
+    # --- size range ---
+    if min_size is not None:
+        predicates.append(lambda obj: int((obj.get("metadata") or {}).get("size_bytes") or 0) >= min_size)
+    if max_size is not None:
+        predicates.append(lambda obj: int((obj.get("metadata") or {}).get("size_bytes") or 0) <= max_size)
 
-        out.append(obj)
+    # --- datetime range ---
+    if since_dt or until_dt:
+        def _dt_ok(obj: Dict[str, Any]) -> bool:
+            ra_dt = parse_iso(obj.get("upload_time"))
+            if since_dt and (ra_dt is None or ra_dt < since_dt):
+                return False
+            if until_dt and (ra_dt is None or ra_dt > until_dt):
+                return False
+            return True
+        predicates.append(_dt_ok)
 
-    return out
-
+    return [obj for obj in objects if all(pred(obj) for pred in predicates)]
+       
 def search_metadata(query: str) -> List[Dict[str, Any]]:
     query = query.strip()
     hash = classify_hash(query)
@@ -176,12 +110,12 @@ def search_metadata(query: str) -> List[Dict[str, Any]]:
 
     return results
 
+def list_all_metadata() -> List[Dict[str, Any]]:
+    results: List[Dict[str, Any]] = []
+    for p in iter_metadata():
+        obj = read_metadata(p)
+        if obj:
+            results.append(obj)
+    return results
 
 ###################################################################################################7
-
-def extract_provider(provider: str, sample: str) -> dict:
-    return {"provider": provider, "sample": sample, "ok": True}
-
-def query_provider(provider: str, sample: str) -> dict:
-    return {"provider": provider, "sample": sample, "ok": True}
-
