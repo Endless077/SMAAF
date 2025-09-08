@@ -56,8 +56,8 @@ class FileMetadata(BaseModel):
 ###################################################################################################
 
 class UploadRequest(BaseModel):
-    source: Optional[str] = Field(default=None, description="Sample Origin/Source.")
     tags: Optional[List[str]] = Field(default=None, description="Optional labels.")
+    source: Optional[str] = Field(default=None, description="Optional Source.")
     note: Optional[str] = Field(default=None, description="Optional notes.")
 
 class UploadResponse(BaseModel):
@@ -65,10 +65,10 @@ class UploadResponse(BaseModel):
     stored_path: str
     metadata_path: str
     metadata: FileMetadata
-    received_at: datetime
-    source: Optional[str] = None
     tags: Optional[List[str]] = None
+    source: Optional[str] = None
     note: Optional[str] = None
+    upload_time: datetime
 
 class QueryResponse(BaseModel):
     count: int

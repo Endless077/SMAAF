@@ -15,6 +15,23 @@ SAMPLES_DIR = os.getenv("SAMPLES_DIR", "./samples")
 
 ###################################################################################################
 
+def _iter_metadata_files() -> Generator[str, None, None]:
+    if not os.path.isdir(SAMPLES_DIR):
+        return
+    for name in os.listdir(SAMPLES_DIR):
+        if name.lower().endswith(".json"):
+            yield os.path.join(SAMPLES_DIR, name)
+
+def _norm_ext(ext: Optional[str]) -> Optional[str]:
+    if not ext:
+        return None
+    e = ext.strip().lower()
+    if not e:
+        return None
+    return e if e.startswith(".") else f".{e}"
+
+###################################################################################################
+
 def ensure_samples_dir() -> str:
     os.makedirs(SAMPLES_DIR, exist_ok=True)
     return SAMPLES_DIR
@@ -40,13 +57,6 @@ def write_metadata(path: str, obj: dict) -> None:
 
 ###################################################################################################
 
-def _iter_metadata_files() -> Generator[str, None, None]:
-    if not os.path.isdir(SAMPLES_DIR):
-        return
-    for name in os.listdir(SAMPLES_DIR):
-        if name.lower().endswith(".json"):
-            yield os.path.join(SAMPLES_DIR, name)
-
 def load_metadata_file(path: str) -> Dict[str, Any] | None:
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -63,14 +73,6 @@ def list_all_metadata() -> List[Dict[str, Any]]:
     return out
 
 ###################################################################################################
-
-def _norm_ext(ext: Optional[str]) -> Optional[str]:
-    if not ext:
-        return None
-    e = ext.strip().lower()
-    if not e:
-        return None
-    return e if e.startswith(".") else f".{e}"
 
 def looks_like_hex(s: str) -> bool:
     try:
@@ -114,7 +116,6 @@ def filter_metadata(
     max_size: Optional[int] = None,
     since_iso: Optional[str] = None,
     until_iso: Optional[str] = None,
-    has_providers: Optional[bool] = None
 ) -> List[Dict[str, Any]]:
     
     ext = _norm_ext(ext)
@@ -146,7 +147,7 @@ def filter_metadata(
             if tags_mode == "all":
                 if not tags_set.issubset(obj_tags):
                     continue
-            else:  # "any"
+            else:
                 if obj_tags.isdisjoint(tags_set):
                     continue
 
@@ -160,7 +161,7 @@ def filter_metadata(
             if (meta.get("ext") or "").strip().lower() != ext:
                 continue
 
-        # --- file_kind ---
+        # --- file kind ---
         if fk_norm:
             if (meta.get("file_kind") or "").strip().upper() != fk_norm:
                 continue
@@ -178,8 +179,8 @@ def filter_metadata(
         if max_size is not None and size > max_size:
             continue
 
-        # --- date range on received_at (top-level, saved by server) ---
-        ra = obj.get("received_at")
+        # --- datetime range ---
+        ra = obj.get("upload_time")
         ra_dt = parse_dt(ra)
         if since_dt and (ra_dt is None or ra_dt < since_dt):
             continue

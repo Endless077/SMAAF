@@ -1,8 +1,11 @@
-# Logging Analytics System
-from utils.logger import get_logging
-LOG_SYS = get_logging()
+#     ________               _        _       _______  _____  
+#    |_   __  |             / |_     / \     |_   __ \|_   _| 
+#      | |_ \_|,--.   .--. `| |-'   / _ \      | |__) | | |   
+#      |  _|  `'_\ : ( (`\] | |    / ___ \     |  ___/  | |   
+#     _| |_   // | |, `'.'. | |, _/ /   \ \_  _| |_    _| |_  
+#    |_____|  \'-;__/[\__) )\__/|____| |____||_____|  |_____| 
+#                                                             
 
-# Support Modules
 import os
 import sys
 import signal
@@ -11,15 +14,18 @@ from datetime import datetime, timezone
 # Server
 import uvicorn
 
-from fastapi import FastAPI, HTTPException, File, Header, Request, Response, status
+from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
-from fastapi import Form, Query, Depends, UploadFile
+from fastapi import File, Form, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 # Stuff
 from .models import *
 from .storage import *
 from .utilities import *
+
+from utils.logger import get_logging
+LOG_SYS = get_logging()
 
 ###################################################################################################
 
@@ -79,7 +85,7 @@ async def upload(
         content = await file.read()
         meta_dict = metadata_extractor(file.filename, content)
 
-        # Build FileMetadata Pydantic object (includes empty external_providers map)
+        # Build FileMetadata Pydantic object
         metadata = FileMetadata(**meta_dict)
 
         # Paths
@@ -90,16 +96,16 @@ async def upload(
         if not os.path.exists(dst_path):
             write_file(dst_path, content)
 
-        # Persist metadata JSON (API response aligned with models.UploadResponse)
+        # Persist metadata JSON
         meta_obj = {
             "id": sha256,
             "stored_path": dst_path,
             "metadata_path": meta_path,
             "metadata": metadata.model_dump(),
-            "received_at": datetime.now(timezone.utc).isoformat(),
-            "source": source,
             "tags": tags,
+            "source": source,
             "note": note,
+            "upload_time": datetime.now(timezone.utc).isoformat()
         }
 
         write_metadata(meta_path, meta_obj)
@@ -111,10 +117,10 @@ async def upload(
             stored_path=dst_path,
             metadata_path=meta_path,
             metadata=metadata,
-            received_at=datetime.now(timezone.utc).isoformat(),
-            source=source,
             tags=tags,
+            source=source,
             note=note,
+            upload_time=datetime.now(timezone.utc).isoformat()
         )
 
     except Exception as e:
@@ -140,8 +146,8 @@ async def search_metadata_route(
     mime_contains: Optional[str] = Query(None, description="Substring on libmagic description."),
     min_size: Optional[int] = Query(None, ge=0, description="Minimum size in bytes."),
     max_size: Optional[int] = Query(None, ge=0, description="Maximum size in bytes."),
-    since: Optional[str] = Query(None, description="ISO datetime filter (received_at >=)."),
-    until: Optional[str] = Query(None, description="ISO datetime filter (received_at <=).")
+    since: Optional[str] = Query(None, description="ISO datetime filter (upload_time >=)."),
+    until: Optional[str] = Query(None, description="ISO datetime filter (upload_time <=).")
 ):
     # Step 1: base set (query or get all)
     base = search_metadata(query) if query else list_all_metadata()
@@ -166,10 +172,10 @@ async def search_metadata_route(
 ###################################################################################################
 
 @app.get("/", status_code=200, tags=["About"],
-         summary="",
+         summary="About Route.",
          description="About Route.")
 @app.get("/about", status_code=200, tags=["About"],
-         summary="",
+         summary="About Route.",
          description="About Route.")
 async def about():
     return RedirectResponse(url="/docs")
