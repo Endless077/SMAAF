@@ -30,6 +30,7 @@ class Settings:
     VS_API_KEY: str = os.getenv("VS_API_KEY", "")
     MB_API_KEY: str = os.getenv("MB_API_KEY", "")
 
+    TIMEOUT: int = 300
     PROVIDERS = {"virustotal", "virusshare", "malwarebazaar"}
 
     # Project Directoires

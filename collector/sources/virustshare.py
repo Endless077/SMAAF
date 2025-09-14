@@ -1,53 +1,86 @@
+#     ____   ____  _                           ______   __                             
+#    |_  _| |_  _|(_)                        .' ____ \ [  |                            
+#      \ \   / /  __   _ .--.  __   _   .--. | (___ \_| | |--.   ,--.   _ .--.  .---.  
+#       \ \ / /  [  | [ `/'`\][  | | | ( (`\] _.____`.  | .-. | `'_\ : [ `/'`\]/ /__\\ 
+#        \ ' /    | |  | |     | \_/ |, `'.'.| \____) | | | | | // | |, | |    | \__., 
+#         \_/    [___][___]    '.__.'_/[\__) )\______.'[___]|__]\'-;__/[___]    '.__.' 
+#                                                                                      
 """
-VirusShare API v2 client for Static Malware Analysis Framework (SMAF)
+VirusShare API v2 Client for Static Malware Analysis Framework (SMAF)
+https://virusshare.com/apiv2_reference
 
-Implements all public endpoints documented at:
-- https://virusshare.com/apiv2_reference
+This module implements a thin Python client around the VirusShare v2 API.
+It provides access to all documented endpoints, allowing retrieval of
+malware metadata, quick classification status, crawler source history,
+and password-protected sample downloads.
 
-Endpoints used:
-- /file      -> Retrieve file report (metadata, VT summary, etc.)
-- /download  -> Download a sample (ZIP, password 'infected')
-- /quick     -> Quick status (0 unknown, 1 malware, 2 benign)
-- /source    -> Source info (URL crawl history) [sha256 only]
+Implemented endpoints:
+- /file      → Retrieve file report (metadata, VT summary, detection info).
+- /quick     → Quick classification (0 unknown, 1 malware, 2 benign).
+- /source    → Get crawler source info (URL history, SHA256 only).
+- /download  → Download a sample ZIP (password: 'infected').
 
-Notes:
-- All requests: GET with query params: apikey=<key>, hash=<hash>
-- Rate limiting returns HTTP 204; caller should backoff
-- Downloads are returned as a password-protected ZIP; we do NOT unzip here
+What is?
+Large malware repository offering access to real-world samples and metadata for
+research, correlation, and enrichment in malware analysis.
 """
-from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Dict, Optional
+# VirusShare
+class VirusShareError(RuntimeError):
+    pass
+
+API_BASE = "https://virusshare.com/apiv2"
+
+from configs.config import settings
+
+###
 
 import json
 import time
 import requests
 
-from configs.config import settings
+import os
+import sys
 
-API_BASE = "https://virusshare.com/apiv2"
+from pathlib import Path
+from typing import Dict, Optional, Any
 
-class VirusShareError(RuntimeError):
-    pass
+###################################################################################################
 
-@dataclass
 class VSClient:
-    api_key: Optional[str] = None
-    timeout: Optional[int] = None
-    backoff_seconds: float = 1.5
-    user_agent: str = "SMAF/VSClient"
-
-    def __post_init__(self) -> None:
-        self.api_key = self.api_key or settings.VS_API_KEY
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        timeout: Optional[int] = None,
+        backoff_seconds: float = 3,
+        user_agent: Optional[str] = None,
+    ) -> None:
+        
+        # Virus API Key
+        self.api_key = api_key or settings.VS_API_KEY
         if not self.api_key:
             raise VirusShareError("VirusShare API key not provided.")
-        self.timeout = self.timeout or settings.TIMEOUT
+
+        # Timeout
+        self.timeout = timeout or settings.TIMEOUT
+
+        # Backoff seconds
+        self.backoff_seconds = backoff_seconds
+
+        # User-Agent
+        self.user_agent = (
+            user_agent
+            or f"VirusShareClient/1.0 requests/{requests.__version__} "
+               f"Python/{sys.version_info.major}.{sys.version_info.minor}"
+        )
+
+        # Requests a VirusShare Session
         self._session = requests.Session()
         self._session.headers.update({"User-Agent": self.user_agent})
 
-    # --------------------------- Core helpers ---------------------------------
+###################################################################################################
+
+    # ================= Helpers =================
     def _get(self, endpoint: str, *, hash_value: str, stream: bool = False) -> requests.Response:
         url = f"{API_BASE}{endpoint}"
         params = {"apikey": self.api_key, "hash": hash_value}
@@ -56,25 +89,21 @@ class VSClient:
         except requests.RequestException as e:
             raise VirusShareError(f"HTTP error contacting VirusShare: {e}") from e
 
-        if resp.status_code == 204:
-            # Rate limited — give the caller a hint and optional delay
-            time.sleep(self.backoff_seconds)
-            raise VirusShareError("Rate limit exceeded (204). Please backoff and retry.")
         if resp.status_code == 403:
             raise VirusShareError("Forbidden (403): invalid or unauthorized API key.")
         if resp.status_code == 400:
             raise VirusShareError("Bad request (400): missing or incorrect parameters.")
         if resp.status_code == 503:
             raise VirusShareError("Service unavailable (503): try again later.")
-        # 404 is expected for missing downloads (not found), caller will handle
+        if resp.status_code == 204:
+            time.sleep(self.backoff_seconds)
+            raise VirusShareError("Rate limit exceeded (204). Please backoff and retry.")
         return resp
 
-    # --------------------------- API methods ----------------------------------
-    def file_report(self, hash_value: str) -> Dict[str, Any]:
-        """/file — Retrieve the JSON report for a given hash (md5/sha1/sha2* supported).
+###################################################################################################
 
-        Returns the full JSON dict as delivered by VirusShare, including 'response'.
-        """
+    # ================= File Report =================
+    def file_report(self, hash_value: str) -> Dict[str, Any]:
         r = self._get("/file", hash_value=hash_value)
         if r.status_code == 200:
             try:
@@ -83,8 +112,8 @@ class VSClient:
                 raise VirusShareError("Non-JSON response for /file") from e
         raise VirusShareError(f"Unexpected status for /file: {r.status_code}")
 
+    # ================= Quick Status =================
     def quick_status(self, hash_value: str) -> int:
-        """/quick — Return 0 (unknown), 1 (malware), or 2 (benign)."""
         r = self._get("/quick", hash_value=hash_value)
         if r.status_code == 200:
             try:
@@ -94,12 +123,9 @@ class VSClient:
                 raise VirusShareError("Invalid /quick response") from e
         raise VirusShareError(f"Unexpected status for /quick: {r.status_code}")
 
-    def source_info(self, sha256: str) -> Dict[str, Any]:
-        """/source — Retrieve crawler URL/timestamp history for a SHA256.
-
-        The API supports SHA256 only.
-        """
-        r = self._get("/source", hash_value=sha256)
+    # ================= Source Info =================
+    def source_info(self, hash_value: str) -> Dict[str, Any]:
+        r = self._get("/source", hash_value=hash_value)
         if r.status_code == 200:
             try:
                 return r.json()
@@ -107,11 +133,18 @@ class VSClient:
                 raise VirusShareError("Non-JSON response for /source") from e
         raise VirusShareError(f"Unexpected status for /source: {r.status_code}")
 
-    def download_sample(self, hash_value: str, *, dest_dir: str | Path = None, filename: Optional[str] = None) -> Path:
-        """/download — Download sample ZIP (password 'infected'). Returns saved path.
+    # ================= Download Samples =================
+    def download_sample(
+        self,
+        hash_value: str,
+        *,
+        dest_dir: str | Path = None,
+        filename: Optional[str] = None
+    ) -> Path:
+        file_info = self.file_report(hash_value)
+        if file_info.get("response") == 2:
+            raise VirusShareError("Sample classified as benign — download not allowed.")
 
-        Benign (response=2) samples are not available for download.
-        """
         dest = Path(dest_dir or settings.DOWNLOAD_DIR)
         dest.mkdir(parents=True, exist_ok=True)
         out_name = filename or f"{hash_value}.zip"
@@ -123,10 +156,8 @@ class VSClient:
         if r.status_code != 200:
             raise VirusShareError(f"Unexpected status for /download: {r.status_code}")
 
-        # Heuristically check content type: file is binary zip
         ctype = r.headers.get("Content-Type", "")
         if "application/zip" not in ctype and "application/octet-stream" not in ctype:
-            # Might be an error JSON; try to parse
             try:
                 data = r.json()
                 raise VirusShareError(f"Download error: {data}")
@@ -137,4 +168,7 @@ class VSClient:
             for chunk in r.iter_content(chunk_size=8192):
                 if chunk:
                     fh.write(chunk)
+
         return out_path
+
+###################################################################################################

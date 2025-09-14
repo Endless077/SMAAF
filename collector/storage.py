@@ -13,15 +13,15 @@ from typing import List, Dict, Iterable, Callable, Generator, Optional, Any
 from metadata import *
 from utilities import *
 
-# Project Configs
-from configs.config import Settings
-
 ###################################################################################################
 
 def extract_provider(provider: str, sample: str) -> dict:
     return {"provider": provider, "sample": sample, "ok": True}
 
 def query_provider(provider: str, sample: str) -> dict:
+    return {"provider": provider, "sample": sample, "ok": True}
+
+def samples_provider(provider: str, sample: str) -> dict:
     return {"provider": provider, "sample": sample, "ok": True}
 
 ###################################################################################################
@@ -112,8 +112,8 @@ def search_metadata(query: str) -> List[Dict[str, Any]]:
 
 def list_all_metadata() -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
-    for p in iter_metadata():
-        obj = read_metadata(p)
+    for p in iter_jsons():
+        obj = read_json(p)
         if obj:
             results.append(obj)
     return results

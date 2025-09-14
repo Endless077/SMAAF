@@ -227,24 +227,23 @@ async def metadata_update(sample: str, provider: str):
     metadata_file["metadata"] = metadata
     write_json(metadata_path, metadata_file)
 
-    
-    return {
-        "status": "updated",
-        "sample": sample,
-        "provider": provider_key,
-        "update": external_providers[provider_key],
-    }
+    return UpdateResponse(
+        status="updated",
+        sample=sample,
+        provider=provider_key,
+        update=external_providers[provider_key],
+    )
 
-@app.post("/metadata/virustotal/", tags=["VirusTotal"], status_code=200)
-async def metadata_vt_update(sample: str):
+@app.post("/providers/extract", tags=["Providers"], status_code=200)
+async def providers_extract(sample: str, provider: str): 
     raise NotImplementedError
 
-@app.post("/metadata/virusshare/update", tags=["VirusShare"], status_code=200)
-async def metadata_vs_update(sample: str): 
+@app.post("/providers/query", tags=["Providers"], status_code=200)
+async def providers_query(sample: str, provider: str):
     raise NotImplementedError
 
-@app.post("/metadata/malwarebazaar/update", tags=["MalwareBazaar"], status_code=200)
-async def metadata_mb_update(sample: str):
+@app.get("/providers/samples", tags=["Providers"], status_code=200)
+async def providers_samples(provider: str):
     raise NotImplementedError
 
 ###################################################################################################

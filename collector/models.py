@@ -7,7 +7,7 @@
 #                                                      
 
 # Imports
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Literal, Optional, Any
 from pydantic import BaseModel, Field
 from datetime import datetime
 
@@ -58,12 +58,30 @@ class FileMetadata(BaseModel):
 
 ###################################################################################################
 
-# ================= Request/Response =================
+# ================= Requests =================
 class UploadRequest(BaseModel):
-    tags: Optional[List[str]] = Field(default=None, description="Optional labels.")
-    source: Optional[str] = Field(default=None, description="Optional Source.")
-    note: Optional[str] = Field(default=None, description="Optional notes.")
+    tags: Optional[List[str]] = Field(default=None)
+    source: Optional[str] = Field(default=None)
+    note: Optional[str] = Field(default=None)
 
+class SearchRequest(BaseModel):
+    query: Optional[str] = None
+    tags: Optional[List[str]] = None
+    tags_mode: Literal["any", "all"] = "any"
+    source: Optional[str] = None
+    ext: Optional[str] = None
+    file_kind: Optional[str] = None
+    mime_contains: Optional[str] = None
+    min_size: Optional[int] = Field(None, ge=0)
+    max_size: Optional[int] = Field(None, ge=0)
+    since: Optional[str] = None
+    until: Optional[str] = None
+
+class UpdateRequest(BaseModel):
+    sample: str
+    provider: Literal["virustotal", "virusshare", "malwarebazaar"]
+
+# ================= Responses =================
 class UploadResponse(BaseModel):
     id: str
     stored_path: str
@@ -74,13 +92,14 @@ class UploadResponse(BaseModel):
     note: Optional[str] = None
     upload_time: datetime
 
-class SearchResponse(BaseModel):
-    count: int
-    results: List[Dict[str, Any]]
-
 class UpdateResponse(BaseModel):
     status: str
     sample: str
     provider: str
+    update: dict
+
+class SearchResponse(BaseModel):
+    count: int
+    results: List[Dict[str, Any]]
 
 ###################################################################################################
