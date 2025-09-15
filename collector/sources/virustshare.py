@@ -39,7 +39,6 @@ import json
 import time
 import requests
 
-import os
 import sys
 
 from pathlib import Path
@@ -80,25 +79,41 @@ class VSClient:
 
 ###################################################################################################
 
+    # ================= Context Manager =================
+    def __enter__(self) -> "VSClient":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
+
+    def close(self) -> None:
+        if self._client:
+            self._client.close()
+
     # ================= Helpers =================
     def _get(self, endpoint: str, *, hash_value: str, stream: bool = False) -> requests.Response:
         url = f"{API_BASE}{endpoint}"
         params = {"apikey": self.api_key, "hash": hash_value}
         try:
-            resp = self._session.get(url, params=params, timeout=self.timeout, stream=stream)
+            response = self._session.get(url, params=params, timeout=self.timeout, stream=stream)
         except requests.RequestException as e:
-            raise VirusShareError(f"HTTP error contacting VirusShare: {e}") from e
-
-        if resp.status_code == 403:
-            raise VirusShareError("Forbidden (403): invalid or unauthorized API key.")
-        if resp.status_code == 400:
-            raise VirusShareError("Bad request (400): missing or incorrect parameters.")
-        if resp.status_code == 503:
+            raise VirusShareError(f"HTTP error about VirusShare: {e}") from e
+        
+        if response.status_code == 403:
+            raise VirusShareError("Forbidden (403): you don't have privileges to make this request.")
+        if response.status_code == 404:
+            raise VirusShareError("Not found (503): the file you have requested could not be found.")
+        if response.status_code == 400:
+            raise VirusShareError("Bad request (400): your request was incorrect.")
+        if response.status_code == 503:
             raise VirusShareError("Service unavailable (503): try again later.")
-        if resp.status_code == 204:
+        if response.status_code == 500:
+            raise VirusShareError("Internal server error (500): internal server error.")
+        if response.status_code == 204:
             time.sleep(self.backoff_seconds)
-            raise VirusShareError("Rate limit exceeded (204). Please backoff and retry.")
-        return resp
+            raise VirusShareError("Request rate limit exceeded (204). you are making more requests than are allowed or have exceeded your quota.")
+        
+        return response
 
 ###################################################################################################
 
