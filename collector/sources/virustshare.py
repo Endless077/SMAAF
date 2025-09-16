@@ -162,10 +162,12 @@ class VSClient:
 
         dest = Path(dest_dir or settings.DOWNLOAD_DIR)
         dest.mkdir(parents=True, exist_ok=True)
+        
         out_name = filename or f"{hash_value}.zip"
         out_path = dest / out_name
 
         r = self._get("/download", hash_value=hash_value, stream=True)
+
         if r.status_code == 404:
             raise VirusShareError("Sample not found (404) for /download.")
         if r.status_code != 200:

@@ -190,9 +190,9 @@ def classify_hash(s: str) -> str | None:
 
 def hashes(b: bytes) -> Tuple[str, str, str, int]:
     return (
-        hashlib.sha256(b).hexdigest(),
         hashlib.md5(b).hexdigest(),
         hashlib.sha1(b).hexdigest(),
+        hashlib.sha256(b).hexdigest(),
         len(b),
     )
 

@@ -75,7 +75,6 @@ class VTClient:
             self._client.close()
 
     # ================= Helpers =================
-    @staticmethod
     def _obj_to_dict(obj: vt.Object) -> Dict[str, Any]:
         return obj.to_dict()
 
@@ -93,9 +92,9 @@ class VTClient:
 ###################################################################################################
 
     # ================= File Information =================
-    def get_file_info(self, file_id: str) -> Dict[str, Any]:
+    def get_file_info(self, sample: str) -> Dict[str, Any]:
         try:
-            file_obj = self._client.get_object("/files/{}", file_id)
+            file_obj = self._client.get_object("/files/{}", sample)
             return self._obj_to_dict(file_obj)
         except APIError as e:
             raise RuntimeError(f"VirusTotal API error (get_file_info): {e}") from e

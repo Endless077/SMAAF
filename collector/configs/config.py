@@ -7,21 +7,60 @@
 #                                         ( ( __)) 
 
 """
-This module centralizes API keys, directories, and global settings
-for providers like VirusTotal, MalwareBazaar, VirusShare, Hybrid-Analysis.
-
-Usage example:
-
-    from config import settings
-    print(settings.VT_API_KEY)
+This module centralizes API keys, directories, and global settings.
 
 All configuration values can be overridden via environment variables and
 this ensures secrets are not hardcoded in the source.
 """
+
+import json
 import os
+
 from pathlib import Path
+from datetime import datetime
+from typing import Literal, Dict
 from dataclasses import dataclass
 
+from utils.logger import setup_logging
+
+###################################################################################################
+
+# Init Logging
+def init_logging(file=None, level=None):
+    """
+    Initialize logging using a project-wide logs directory.
+
+    Args:
+        file:
+            - False/None -> force console only.
+            - True  -> file with timestamp (.log).
+            - str   -> custom file path (absolute path).
+            
+        level: logging level (default: INFO)
+    """
+    log_path_str = None
+
+    if file:
+        if file is True:
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_path = settings.LOGS_DIR / f"log_{ts}.log"
+        elif isinstance(file, str):
+            p = Path(file)
+            log_path = p if p.is_absolute() else settings.LOGS_DIR / p
+        else:
+            log_path = None
+
+        if log_path is not None:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_path_str = str(log_path)
+
+    kwargs = {}
+    if level is not None:
+        kwargs["level"] = level
+
+    return setup_logging(file=log_path_str if log_path_str else file, **kwargs)
+
+###################################################################################################
 
 @dataclass(frozen=True)
 class Settings:
@@ -30,21 +69,36 @@ class Settings:
     VS_API_KEY: str = os.getenv("VS_API_KEY", "")
     MB_API_KEY: str = os.getenv("MB_API_KEY", "")
 
+    PROVIDERS = Literal["VirusTotal", "VirusTotal", "MalwareBazaar"]
+    PROVIDER_DIR_MAP: Dict[PROVIDERS, str] = {
+        "VirusShare": "virusshare",
+        "VirusTotal": "virustotal",
+        "MalwareBazaar": "malwarebazaar"
+    }
+
     TIMEOUT: int = 300
-    PROVIDERS = {"virustotal", "virusshare", "malwarebazaar"}
 
     # Project Directoires
     BASE_DIR: Path = Path(os.getenv("SMAF_BASE_DIR", Path.cwd()))
-    DOWNLOAD_DIR: Path = BASE_DIR / os.getenv("SMAF_DOWNLOAD_DIR", "download")
+    
+    LOGS_DIR: Path = BASE_DIR / os.getenv("SMAF_LOG_DIR", "logs")
     SAMPLES_DIR: Path = BASE_DIR / os.getenv("SMAF_STORAGE_DIR", "samples")
+    DOWNLOAD_DIR: Path = BASE_DIR / os.getenv("SMAF_DOWNLOAD_DIR", "download")
 
 # Global settings object
 settings = Settings()
 
 # Setup directories
-settings.DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+settings.LOGS_DIR.mkdir(parents=True, exist_ok=True)
 settings.SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
+settings.DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+###################################################################################################
+
+# Testing Main
 if __name__ == "__main__":
-    import json
+    # Logging initialization
+    init_logging()
+
+    # Print the config class
     print(json.dumps(settings.__dict__, indent=2, default=str))

@@ -9,8 +9,10 @@
 # Imports
 import os
 import json
+import zipfile
+import tempfile
 from datetime import datetime
-from typing import Tuple, Dict, Generator, Optional, Any
+from typing import List, Tuple, Dict, Generator, Optional, Any
 
 # Project Configs
 from configs.config import Settings
@@ -18,20 +20,26 @@ from configs.config import Settings
 ###################################################################################################
 
 # ================= Files =================
-def iter_files() -> Generator[str, None, None]:
-    if not os.path.isdir(Settings.SAMPLES_DIR):
-        return
-    for name in os.listdir(Settings.SAMPLES_DIR):
-        path = os.path.join(Settings.SAMPLES_DIR, name)
+def iter_files(dir) -> Generator[str, None, None]:
+    if not os.path.isdir(dir):
+        return None
+    for name in os.listdir(dir):
+        path = os.path.join(dir, name)
         if os.path.isfile(path) and not name.lower().endswith(".json"):
             yield path
 
-def iter_jsons() -> Generator[str, None, None]:
-    if not os.path.isdir(Settings.SAMPLES_DIR):
-        return
-    for name in os.listdir(Settings.SAMPLES_DIR):
+def iter_jsons(dir: str) -> Generator[str, None, None]:
+    if not os.path.isdir(dir):
+        return None
+    for name in os.listdir(dir):
         if name.lower().endswith(".json"):
-            yield os.path.join(Settings.SAMPLES_DIR, name)
+            yield os.path.join(dir, name)
+
+def iter_all(dir: str) -> Generator[str, None, None]:
+    if not os.path.isdir(dir):
+        return None
+    for name in os.listdir(dir):
+        yield os.path.join(dir, name)
 
 def read_file(path: str) -> bytes | None:
     try:
@@ -57,6 +65,43 @@ def write_json(path: str, obj: dict) -> None:
 
 ###################################################################################################
 
+# ================= Archives =================
+def extract_zip(zip_path: str, password: str = "infected") -> Tuple[str, List[str]]:
+    if not zipfile.is_zipfile(zip_path):
+        raise ValueError(f"Not a zip file: {zip_path}")
+
+    tmpdir = tempfile.mkdtemp(prefix="provider_extract_")
+    extracted_paths: List[str] = []
+
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        for member in zf.namelist():
+            if member.endswith("/"):
+                continue
+            try:
+                content = zf.read(member, pwd=password.encode("utf-8"))
+            except RuntimeError as re:
+                raise RuntimeError(f"Failed to read '{member}' from zip: {re}")
+            except zipfile.BadZipFile as bz:
+                raise RuntimeError(f"Bad zip member '{member}': {bz}")
+
+            safe_name = os.path.basename(member) or "extracted_file"
+            out_path = os.path.join(tmpdir, safe_name)
+            if os.path.exists(out_path):
+                base, ext = os.path.splitext(safe_name)
+                idx = 1
+                while os.path.exists(os.path.join(tmpdir, f"{base}_{idx}{ext}")):
+                    idx += 1
+                out_path = os.path.join(tmpdir, f"{base}_{idx}{ext}")
+
+            with open(out_path, "wb") as out_f:
+                out_f.write(content)
+
+            extracted_paths.append(out_path)
+
+    return tmpdir, extracted_paths
+
+###################################################################################################
+
 # ================= Paths =================
 def build_paths(filename: str, sha256: str) -> Tuple[str, str]:
     safe_name = "".join(c for c in filename if c.isalnum() or c in (".", "_", "-", " ")).strip()
@@ -68,6 +113,12 @@ def build_paths(filename: str, sha256: str) -> Tuple[str, str]:
     file_path = os.path.join(Settings.SAMPLES_DIR, fname)
     meta_path = os.path.join(Settings.SAMPLES_DIR, f"{sha256}.json")
     return file_path, meta_path
+
+def gather_targets(file_path: str) -> Tuple[List[str], Optional[str]]:
+    if zipfile.is_zipfile(file_path):
+        tmpdir, extracted = extract_zip(file_path, password="infected")
+        return extracted, tmpdir
+    return [file_path], None
 
 ###################################################################################################
 

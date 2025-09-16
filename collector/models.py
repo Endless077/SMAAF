@@ -56,6 +56,23 @@ class FileMetadata(BaseModel):
     macho: Optional[MachOBasicMetadata] = None
     external_providers: Dict[str, Dict[str, Any]] = Field(default_factory=dict,)
 
+class MetadataItem(BaseModel):
+    id: str
+    original_name: str
+    stored_path: str
+    metadata_path: str
+    metadata: FileMetadata
+    tags: List[str]
+    source: str
+    note: str
+    upload_time: str
+
+# ================= Samle Items =================
+class SampleItem(BaseModel):
+    files: List[str]
+    provider: str
+    sample: Optional[str] = None
+
 ###################################################################################################
 
 # ================= Requests =================
@@ -63,6 +80,22 @@ class UploadRequest(BaseModel):
     tags: Optional[List[str]] = Field(default=None)
     source: Optional[str] = Field(default=None)
     note: Optional[str] = Field(default=None)
+
+class UpdateRequest(BaseModel):
+    sample: str
+    provider: Literal["virustotal", "virusshare", "malwarebazaar"]
+
+class ExtractRequest(BaseModel):
+    sample: Optional[str] = None,
+    provider: Optional[str] = None
+
+class SampleRequest(BaseModel):
+    sample: Optional[str] = None,
+    provider: Optional[str] = None
+
+class QueryRequest(BaseModel):
+    hash: Optional[str] = None,
+    provider: Optional[str] = None
 
 class SearchRequest(BaseModel):
     query: Optional[str] = None
@@ -76,10 +109,6 @@ class SearchRequest(BaseModel):
     max_size: Optional[int] = Field(None, ge=0)
     since: Optional[str] = None
     until: Optional[str] = None
-
-class UpdateRequest(BaseModel):
-    sample: str
-    provider: Literal["virustotal", "virusshare", "malwarebazaar"]
 
 # ================= Responses =================
 class UploadResponse(BaseModel):
@@ -97,6 +126,24 @@ class UpdateResponse(BaseModel):
     sample: str
     provider: str
     update: dict
+
+class ExtractResponse(BaseModel):
+    sample: Optional[str] = None
+    provider: Optional[str] = None
+    items: List[MetadataItem]
+    errors: List[str]
+    processed: int
+    success: bool
+
+class SamplesResponse(BaseModel):
+    results: List[SampleItem]
+    success: bool
+
+class QueryResponse(BaseModel):
+    results: Any
+    provider: str
+    sample: Optional[str] = None
+    success: bool
 
 class SearchResponse(BaseModel):
     count: int

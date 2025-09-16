@@ -32,9 +32,6 @@ from models import *
 from storage import *
 from utilities import *
 
-from utils.logger import get_logging
-LOG_SYS = get_logging()
-
 ###################################################################################################
 
 # To Run: uvicorn main:app --host 127.0.0.1 --port 8080 --reload
@@ -115,13 +112,11 @@ async def upload(
 
         write_json(metadata_path, meta_obj)
 
-        LOG_SYS.write(TAG, f"New sample stored: {file_path}")
-
         return UploadResponse(
             id=sha256,
             stored_path=file_path,
             metadata_path=metadata_path,
-            metadata=metadata,
+            metadata=metadata.model_dump(),
             tags=tags,
             source=source,
             note=note,
@@ -129,7 +124,6 @@ async def upload(
         )
 
     except Exception as e:
-        LOG_SYS.write(TAG, f"Upload error: {e}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
 
 @app.get("/metadata/search", response_model=SearchResponse, status_code=200, tags=["Metadata"],
@@ -154,10 +148,8 @@ async def metadata_search(
     since: Optional[str] = Query(None, description="ISO datetime filter (upload_time >=)."),
     until: Optional[str] = Query(None, description="ISO datetime filter (upload_time <=).")
 ):
-    # Step 1: base set (query or get all)
     base = search_metadata(query) if query else list_all_metadata()
 
-    # Step 2: apply filters (all AND-combined)
     filtered = filter_metadata(
         base,
         tags=tags,
@@ -184,7 +176,6 @@ app.post("/metadata/update", response_model=UpdateResponse,  status_code=204, ta
     ), 
 )
 async def metadata_update(sample: str, provider: str):
-    # Step 1: search sample metadata
     results = search_metadata(sample)
     if not results:
         raise HTTPException(status_code=404, detail="Sample not found.")
@@ -194,7 +185,6 @@ async def metadata_update(sample: str, provider: str):
     if not metadata_path or not os.path.exists(metadata_path):
         raise HTTPException(status_code=500, detail="Metadata file not found on disk.")
 
-    # Step 2: query information via providers
     provider_key = provider.strip().lower()
     if provider not in Settings.PROVIDERS:
         raise HTTPException(status_code=400, detail=f"Provider '{provider}' not supported.")
@@ -204,7 +194,6 @@ async def metadata_update(sample: str, provider: str):
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Provider '{provider}' call failed: {e!s}")
 
-    # Step 3: read the metadata section and update
     metadata_file = read_json(metadata_path)
     if not isinstance(metadata_file, dict):
         raise HTTPException(status_code=500, detail="Invalid metadata JSON")
@@ -219,10 +208,8 @@ async def metadata_update(sample: str, provider: str):
     elif not isinstance(external_providers, dict):
         raise HTTPException(status_code=500, detail="'external_providers' must be an object")
 
-    # serialize the query provider response into JSON
     external_providers[provider_key] = jsonable_encoder(provider_response)
 
-    # save the structure in the metadata file
     metadata["external_providers"] = external_providers
     metadata_file["metadata"] = metadata
     write_json(metadata_path, metadata_file)
@@ -234,17 +221,72 @@ async def metadata_update(sample: str, provider: str):
         update=external_providers[provider_key],
     )
 
-@app.post("/providers/extract", tags=["Providers"], status_code=200)
-async def providers_extract(sample: str, provider: str): 
-    raise NotImplementedError
+@app.post("/providers/extract", response_model=ExtractResponse, status_code=200, tags=["Providers"],
+        summary="Extract and index samples from a provider.",
+        description=(
+            "Process one or more files from a provider directory (including password-protected ZIPs). "
+            "Each sample is hashed, stored in the *samples* folder, and a JSON metadata file is generated. "
+            "The response includes processed items, errors, and overall status."
+        ))
+async def providers_extract(sample: Optional[str] = None, provider: Optional[str] = None): 
+    try:
+        result_dict = extract_provider(sample=sample, provider=provider)
+        return ExtractResponse(**result_dict)
 
-@app.post("/providers/query", tags=["Providers"], status_code=200)
-async def providers_query(sample: str, provider: str):
-    raise NotImplementedError
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except OSError as e:
+        raise HTTPException(status_code=500, detail="Internal storage error") from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
-@app.get("/providers/samples", tags=["Providers"], status_code=200)
-async def providers_samples(provider: str):
-    raise NotImplementedError
+@app.get("/providers/samples", response_model=SamplesResponse, tags=["Providers"], status_code=200,
+        summary="List available samples from providers.",
+        description=(
+            "Return the list of sample files available under the provider's download directory.\n\n"
+            "- If `provider` is specified, only that provider's folder is scanned.\n"
+            "- If `sample` is provided, only files containing that string are returned.\n"
+            "- If no provider is specified, all providers are scanned."
+        ))
+async def providers_samples(sample: Optional[str] = None, provider: Optional[str] = None):
+    data = samples_provider(sample=sample, provider=provider)
+
+    if not data["results"] or not data["success"]:
+        if provider:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No samples found in provider: {provider} with filter: {sample}.",
+            )
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No samples found in any provider with filter: {sample}.",
+            )
+
+    return JSONResponse(content=data)
+
+@app.post("/providers/query", response_model=QueryResponse, status_code=200, tags=["Providers"],
+        summary="Query a provider for sample .",
+        description=(
+            "Query a specific provider (VirusTotal, VirusShare, MalwareBazaar) for detailed "
+            "information about a sample identified by its hash.\n\n"
+            "- `hash`: Hash of the sample to look up.\n"
+            "- `provider`: The provider to query."
+        ))
+async def providers_query(hash: Optional[str] = None, provider: Optional[str] = None):
+    try:
+        data = query_provider(sample=hash, provider=provider)
+
+        return JSONResponse(content=data)
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to query provider: {provider} for sample: {hash} - {str(e)}",
+        )
 
 ###################################################################################################
 
@@ -264,19 +306,20 @@ SHUTDOWN_TAG = "Shutdown"
 
 
 def startup():
-    LOG_SYS.write(STARTUP_TAG, r" ________               _        _       _______  _____  ")
-    LOG_SYS.write(STARTUP_TAG, r"|_   __  |             / |_     / \     |_   __ \|_   _| ")
-    LOG_SYS.write(STARTUP_TAG, r"  | |_ \_|,--.   .--. `| |-'   / _ \      | |__) | | |   ")
-    LOG_SYS.write(STARTUP_TAG, r"  |  _|  `'_\ : ( (`\] | |    / ___ \     |  ___/  | |   ")
-    LOG_SYS.write(STARTUP_TAG, r" _| |_   // | |, `'.'. | |, _/ /   \ \_  _| |_    _| |_  ")
-    LOG_SYS.write(STARTUP_TAG, r"|_____|  \'-;__/[\__) )\__/|____| |____||_____|  |_____| ")
+    #LOG_SYS.write(STARTUP_TAG, r" ________               _        _       _______  _____  ")
+    #LOG_SYS.write(STARTUP_TAG, r"|_   __  |             / |_     / \     |_   __ \|_   _| ")
+    #LOG_SYS.write(STARTUP_TAG, r"  | |_ \_|,--.   .--. `| |-'   / _ \      | |__) | | |   ")
+    #LOG_SYS.write(STARTUP_TAG, r"  |  _|  `'_\ : ( (`\] | |    / ___ \     |  ___/  | |   ")
+    #LOG_SYS.write(STARTUP_TAG, r" _| |_   // | |, `'.'. | |, _/ /   \ \_  _| |_    _| |_  ")
+    #LOG_SYS.write(STARTUP_TAG, r"|_____|  \'-;__/[\__) )\__/|____| |____||_____|  |_____| ")
+    pass
 
 def shutdown(signum, frame):
     try:
-        LOG_SYS.write(SHUTDOWN_TAG, "Shutdown FastAPI server.")
+        #LOG_SYS.write(SHUTDOWN_TAG, "Shutdown FastAPI server.")
         sys.exit(0)
     except Exception as e:
-        LOG_SYS.write(SHUTDOWN_TAG, f"An unexpected error occurred: {e}")
+        #LOG_SYS.write(SHUTDOWN_TAG, f"An unexpected error occurred: {e}")
         sys.exit(1)
 
 

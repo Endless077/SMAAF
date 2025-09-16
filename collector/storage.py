@@ -7,22 +7,153 @@
 #                                         ( ( __))        
 
 # Imports
-from typing import List, Dict, Iterable, Callable, Generator, Optional, Any
+from typing import List, Dict, Iterable, Callable, Optional, Any
+import shutil
 
 # Project Modules
+from models import *
 from metadata import *
 from utilities import *
 
+from sources.virustotal import VTClient
+from sources.virustshare import VSClient
+from sources.malwarebazaar import MBClient
+
+from configs.config import settings
+
 ###################################################################################################
 
-def extract_provider(provider: str, sample: str) -> dict:
-    return {"provider": provider, "sample": sample, "ok": True}
+def extract_provider(sample: str | None = None, provider: str | None = None) -> dict:
+    if not provider:
+        raise ValueError("Parameter 'provider' is required.")
 
-def query_provider(provider: str, sample: str) -> dict:
-    return {"provider": provider, "sample": sample, "ok": True}
+    provider_dir = os.path.join(settings.DOWNLOAD_DIR, provider)
+    if not os.path.isdir(provider_dir):
+        raise FileNotFoundError(f"Provider directory not found: {provider_dir}")
 
-def samples_provider(provider: str, sample: str) -> dict:
-    return {"provider": provider, "sample": sample, "ok": True}
+    targets_on_disk: List[str] = []
+    if sample:
+        candidate = os.path.join(provider_dir, sample)
+        if not os.path.isfile(candidate):
+            raise FileNotFoundError(f"Sample not found: {candidate}")
+        targets_on_disk = [candidate]
+    else:
+        for name in os.listdir(provider_dir):
+            if name.startswith("."):
+                continue
+            p = os.path.join(provider_dir, name)
+            if os.path.isfile(p):
+                targets_on_disk.append(p)
+        if not targets_on_disk:
+            raise FileNotFoundError(f"No samples to process in {provider_dir}")
+
+    items: List[dict] = []
+    errors: List[str] = []
+
+    for disk_fp in targets_on_disk:
+        tmpdir = None
+        try:
+            targets_to_process, tmpdir = gather_targets(disk_fp)
+
+            for actual_fp in targets_to_process:
+                original_name = os.path.basename(actual_fp)
+                with open(actual_fp, "rb") as f:
+                    content = f.read()
+
+                meta_dict = metadata_extractor(original_name, content)
+                file_meta = FileMetadata(**meta_dict)
+                sha256 = file_meta.sha256
+
+                file_path, metadata_path = build_paths(original_name, sha256)
+                if not os.path.exists(file_path):
+                    write_file(file_path, content)
+
+                meta_item = MetadataItem(
+                    id=sha256,
+                    original_name=original_name,
+                    stored_path=file_path,
+                    metadata_path=metadata_path,
+                    metadata=file_meta,
+                    tags=[provider],
+                    source=provider,
+                    note=f"Extracted from {provider} samples - {original_name}",
+                    upload_time=datetime.now(timezone.utc).isoformat(),
+                )
+
+                write_json(metadata_path, meta_item.model_dump())
+
+                items.append(meta_item.model_dump())
+
+        except Exception as e:
+            errors.append(f"{os.path.basename(disk_fp)}: {e}")
+
+        finally:
+            if tmpdir and os.path.isdir(tmpdir):
+                try:
+                    shutil.rmtree(tmpdir)
+                except Exception:
+                    pass
+
+    processed = len(items)
+    success = processed > 0
+
+    return {
+        "sample": sample,
+        "provider": provider,
+        "items": items,
+        "errors": errors,
+        "processed": processed,
+        "success": success,
+    }
+
+def query_provider(sample: Optional[str] = None, provider: Optional[str] = None) -> dict:
+    try:
+        if provider == "VirusTotal":
+            client = VTClient()
+            data = client.get_file_info(sample)
+        elif provider == "VirusShare":
+            client = VSClient()
+            data = client.file_report(sample)
+        elif provider == "MalwareBazaar":
+            client = MBClient()
+            data = client.get_info(sample)
+        else:
+            raise ValueError(f"Unsupported provider: {provider}")
+
+        return {"results": data, "provider": provider, "sample": sample, "success": True}
+    except Exception as e:
+        raise e
+    
+def samples_provider(sample: str = None, provider: str = None) -> dict:
+    results = []
+
+    if provider:
+        dirpath = settings.PROVIDER_DIR_MAP[provider]
+        if not dirpath.exists():
+            return {"results": [], "success": False}
+
+        files = [
+            f.name
+            for f in dirpath.iterdir()
+            if f.is_file() and (not sample or sample in f.name)
+        ]
+        if files:
+            results.append({"provider": provider, "sample": sample, "files": files})
+
+    else: 
+        for prov, folder in settings.PROVIDER_DIR_MAP.items():
+            dirpath = settings.DOWNLOAD_DIR / folder
+            if not dirpath.exists():
+                continue
+            files = [
+                f.name
+                for f in dirpath.iterdir()
+                if f.is_file() and (not sample or sample in f.name)
+            ]
+            if files:
+                results.append({"provider": prov, "sample": sample, "files": files})
+
+    return {"results": results, "success": bool(results)}
 
 ###################################################################################################
 
@@ -110,9 +241,17 @@ def search_metadata(query: str) -> List[Dict[str, Any]]:
 
     return results
 
+def list_all_files() -> List[Dict[str, Any]]:
+    results: List[Dict[str, Any]] = []
+    for p in iter_files(settings.SAMPLES_DIR):
+        obj = read_json(p)
+        if obj:
+            results.append(obj)
+    return results
+
 def list_all_metadata() -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
-    for p in iter_jsons():
+    for p in iter_jsons(settings.SAMPLES_DIR):
         obj = read_json(p)
         if obj:
             results.append(obj)
