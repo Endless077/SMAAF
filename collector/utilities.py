@@ -20,27 +20,33 @@ from configs.config import Settings
 ###################################################################################################
 
 # ================= Files =================
+# Iterate over files in a directory, excluding JSON files
 def iter_files(dir) -> Generator[str, None, None]:
     if not os.path.isdir(dir):
         return None
     for name in os.listdir(dir):
         path = os.path.join(dir, name)
+        # Yield only regular files that are not JSON
         if os.path.isfile(path) and not name.lower().endswith(".json"):
             yield path
 
+# Iterate over JSON files in a directory
 def iter_jsons(dir: str) -> Generator[str, None, None]:
     if not os.path.isdir(dir):
         return None
     for name in os.listdir(dir):
+        # Yield only files ending with .json
         if name.lower().endswith(".json"):
             yield os.path.join(dir, name)
 
+# Iterate over all entries (files + dirs) in a directory
 def iter_all(dir: str) -> Generator[str, None, None]:
     if not os.path.isdir(dir):
         return None
     for name in os.listdir(dir):
         yield os.path.join(dir, name)
 
+# Read a file in binary mode, return None on failure
 def read_file(path: str) -> bytes | None:
     try:
         with open(path, "rb") as f:
@@ -48,6 +54,7 @@ def read_file(path: str) -> bytes | None:
     except (IOError, OSError):
         return None
     
+# Read a JSON file, return parsed dict or None on error
 def read_json(path: str) -> Dict[str, Any] | None:
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -55,10 +62,12 @@ def read_json(path: str) -> Dict[str, Any] | None:
     except (IOError, OSError, json.JSONDecodeError):
         return None
 
+# Write raw bytes to a file
 def write_file(path: str, data: bytes) -> None:
     with open(path, "wb") as f:
         f.write(data)
 
+# Write a JSON object to a file with formatting
 def write_json(path: str, obj: dict) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, indent=2, ensure_ascii=False, sort_keys=True)
@@ -66,24 +75,29 @@ def write_json(path: str, obj: dict) -> None:
 ###################################################################################################
 
 # ================= Archives =================
+# Extract files from a password-protected ZIP archive into a temp dir
 def extract_zip(zip_path: str, password: str = "infected") -> Tuple[str, List[str]]:
     if not zipfile.is_zipfile(zip_path):
         raise ValueError(f"Not a zip file: {zip_path}")
 
+    # Create temporary directory for extracted files
     tmpdir = tempfile.mkdtemp(prefix="provider_extract_")
     extracted_paths: List[str] = []
 
     with zipfile.ZipFile(zip_path, "r") as zf:
         for member in zf.namelist():
+            # Skip directories inside the archive
             if member.endswith("/"):
                 continue
             try:
+                # Extract file content using password
                 content = zf.read(member, pwd=password.encode("utf-8"))
             except RuntimeError as re:
                 raise RuntimeError(f"Failed to read '{member}' from zip: {re}")
             except zipfile.BadZipFile as bz:
                 raise RuntimeError(f"Bad zip member '{member}': {bz}")
 
+            # Ensure safe filename and avoid overwriting existing files
             safe_name = os.path.basename(member) or "extracted_file"
             out_path = os.path.join(tmpdir, safe_name)
             if os.path.exists(out_path):
@@ -93,6 +107,7 @@ def extract_zip(zip_path: str, password: str = "infected") -> Tuple[str, List[st
                     idx += 1
                 out_path = os.path.join(tmpdir, f"{base}_{idx}{ext}")
 
+            # Write extracted file to disk
             with open(out_path, "wb") as out_f:
                 out_f.write(content)
 
@@ -103,17 +118,22 @@ def extract_zip(zip_path: str, password: str = "infected") -> Tuple[str, List[st
 ###################################################################################################
 
 # ================= Paths =================
+# Build safe storage paths for a sample and its metadata
 def build_paths(filename: str, sha256: str) -> Tuple[str, str]:
+    # Sanitize filename to avoid unsafe characters
     safe_name = "".join(c for c in filename if c.isalnum() or c in (".", "_", "-", " ")).strip()
     
     if not safe_name:
         safe_name = "sample.bin"
     
+    # File path contains hash + original safe filename
     fname = f"{sha256}_{safe_name}"
     file_path = os.path.join(Settings.SAMPLES_DIR, fname)
+    # Metadata path is always <sha256>.json
     meta_path = os.path.join(Settings.SAMPLES_DIR, f"{sha256}.json")
     return file_path, meta_path
 
+# Gather files to process: single file or extracted ZIP content
 def gather_targets(file_path: str) -> Tuple[List[str], Optional[str]]:
     if zipfile.is_zipfile(file_path):
         tmpdir, extracted = extract_zip(file_path, password="infected")
@@ -123,6 +143,7 @@ def gather_targets(file_path: str) -> Tuple[List[str], Optional[str]]:
 ###################################################################################################
 
 # ================= Normalization =================
+# Normalize extension to lowercase, prefixed with a dot
 def norm_ext(ext: Optional[str]) -> Optional[str]:
     if not ext:
         return None
@@ -131,16 +152,20 @@ def norm_ext(ext: Optional[str]) -> Optional[str]:
         return None
     return e if e.startswith(".") else f".{e}"
 
+# Normalize string to lowercase
 def norm_lower(s: Any) -> str:
     return str(s).strip().casefold() if s is not None else ""
 
+# Normalize string to uppercase
 def norm_upper(s: Any) -> str:
     return str(s).strip().upper() if s is not None else ""
 
+# Parse ISO 8601 datetime string, return None on failure
 def parse_iso(dt: Optional[str]) -> Optional[datetime]:
     if not dt:
         return None
     try:
+        # Replace trailing Z with +00:00 for UTC
         if dt.endswith("Z"):
             dt = dt[:-1] + "+00:00"
         return datetime.fromisoformat(dt)

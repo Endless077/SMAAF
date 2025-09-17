@@ -31,23 +31,29 @@ _ssdeep = _try_import("ssdeep")    # from ssdeep
 ###################################################################################################
 
 # ================= ELF / Mach-O metadata (LIEF) =================
+# Parse ELF/Mach-O using LIEF; returns (elf_dict, macho_dict)
 def extract_lief_metadata(b: bytes) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    # Check if lief is installed
     if not _lief:
         return None, None
     try:
+        # LIEF expects a sequence of ints; list(b) avoids file I/O but copies memory
         bin_obj = _lief.parse(list(b))
         if bin_obj is None:
             return None, None
 
+        # Probe binary format (ELF/MACHO/Unknown)
         fmt = bin_obj.format.name if hasattr(bin_obj, "format") else "Unknown"
         
-        # ELF
+        # --- ELF path ---
         if fmt == "ELF":
+            # Collect DT_NEEDED entries; be robust to parser quirks
             libraries = []
             try:
                 libraries = list(bin_obj.libraries)
             except Exception:
                 pass
+            # Extract core header info; guard with hasattr for stability across LIEF versions
             return {
                 "class_type": bin_obj.header.file_type.name if hasattr(bin_obj, "header") else None,
                 "machine": bin_obj.header.machine_type.name if hasattr(bin_obj, "header") else None,
@@ -55,13 +61,15 @@ def extract_lief_metadata(b: bytes) -> Tuple[Optional[Dict[str, Any]], Optional[
                 "libraries": libraries or None,
             }, None
 
-        # Mach-O
+        # --- Mach-O path ---
         if fmt == "MACHO":
+            # Gather linked libraries from load commands
             libraries = []
             try:
                 libraries = [str(cmd.name) for cmd in bin_obj.libraries]
             except Exception:
                 pass
+            # CPU type can be missing on some slices; keep it optional
             cpu = None
             try:
                 cpu = bin_obj.header.cpu_type.name
@@ -74,18 +82,25 @@ def extract_lief_metadata(b: bytes) -> Tuple[Optional[Dict[str, Any]], Optional[
                 "libraries": libraries or None,
             }
 
+        # Unknown format (no metadata)
         return None, None
+    
     except Exception:
+        # Any LIEF parsing failure returns silent None to keep pipeline resilient
         return None, None
 
 # ================= PE metadata (pefile) =================
+# Parse PE headers/sections/imports via pefile
 def extract_pe_metadata(b: bytes) -> Optional[Dict[str, Any]]:
+    # Check if pefile is installed
     if not _pefile:
         return None
+    
     try:
+        # Parse from in-memory bytes
         pe = _pefile.PE(data=b)
 
-        # Type: PE32 / PE32+
+        # Determine PE type from Optional Header magic
         pe_type = None
         try:
             magic = pe.OPTIONAL_HEADER.Magic
@@ -93,13 +108,12 @@ def extract_pe_metadata(b: bytes) -> Optional[Dict[str, Any]]:
         except Exception:
             pass
 
-        # COFF / header basics
+        # Extract core COFF header info, keep ISO timestamp for readability
         tstamp = None
         tstamp_iso = None
         machine = None
         characteristics = None
         num_sections = None
-
         try:
             tstamp = pe.FILE_HEADER.TimeDateStamp
             tstamp_iso = datetime.fromtimestamp(tstamp, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -109,14 +123,14 @@ def extract_pe_metadata(b: bytes) -> Optional[Dict[str, Any]]:
         except Exception:
             pass
 
-        # imphash
+        # Compute import hash (useful for clustering)
         imp_hash = None
         try:
             imp_hash = pe.get_imphash()
         except Exception:
             pass
 
-        # sections
+        # Collect section info + entropy for packing/obfuscation hints
         sections: List[Dict[str, Any]] = []
         try:
             for s in pe.sections:
@@ -131,7 +145,7 @@ def extract_pe_metadata(b: bytes) -> Optional[Dict[str, Any]]:
         except Exception:
             pass
 
-        # imports
+        # Build import table map: DLL -> list of functions (names or ordinals)
         imports: Dict[str, List[str]] = {}
         try:
             if hasattr(pe, "DIRECTORY_ENTRY_IMPORT"):
@@ -145,6 +159,7 @@ def extract_pe_metadata(b: bytes) -> Optional[Dict[str, Any]]:
         except Exception:
             pass
 
+        # Return normalized PE metadata dictionary
         return {
             "pe_type": pe_type,
             "imphash": imp_hash,
@@ -158,12 +173,16 @@ def extract_pe_metadata(b: bytes) -> Optional[Dict[str, Any]]:
         }
     
     except Exception:
+        # Any parsing error returns None to keep pipeline moving
         return None
     
 # ================= Entropy =================
+# Shannon entropy over raw bytes (rounded for compactness)
 def shannon_entropy(b: bytes) -> float:
     if not b:
         return 0.0
+    
+    # Frequency histogram (0..255)
     freq = [0] * 256
     for x in b:
         freq[x] += 1
@@ -176,11 +195,13 @@ def shannon_entropy(b: bytes) -> float:
     return round(entropy, 4)
 
 # ================= Hashing =================
+# Identify hash type by hex-length; returns 'md5'/'sha1'/'sha256' or None
 def classify_hash(s: str) -> str | None:
     s = s.lower()
     if not re.fullmatch(r"[0-9a-f]+", s):
         return None
     
+    # Length -> algorithm
     hash_map = {
         32: "md5",
         40: "sha1",
@@ -188,6 +209,7 @@ def classify_hash(s: str) -> str | None:
     }
     return hash_map.get(len(s))
 
+# Compute common hashes and size once to avoid repeated passes
 def hashes(b: bytes) -> Tuple[str, str, str, int]:
     return (
         hashlib.md5(b).hexdigest(),
@@ -196,6 +218,7 @@ def hashes(b: bytes) -> Tuple[str, str, str, int]:
         len(b),
     )
 
+# Compute ssdeep (fuzzy hash) if library is available
 def ssdeep(b: bytes) -> Optional[str]:
     if _ssdeep:
         try:
@@ -205,6 +228,7 @@ def ssdeep(b: bytes) -> Optional[str]:
     return None
 
 # ================= MIME / extension =================
+# Best-effort magic-based type (human-readable), may raise on some platforms
 def guess_mime_magic(b: bytes) -> Optional[str]:
     if _magic:
         try:
@@ -214,10 +238,12 @@ def guess_mime_magic(b: bytes) -> Optional[str]:
             return None
     return None
 
+# Extract extension from filename (lowercased, includes leading dot)
 def guess_ext_from_name(filename: str) -> Optional[str]:
     ext = os.path.splitext(filename)[1].lower() or None
     return ext
 
+# Guess MIME from filename via mimetypes DB
 def guess_mime_from_name(filename: str) -> Optional[str]:
     mime, _ = mimetypes.guess_type(filename)
     return mime
@@ -225,32 +251,40 @@ def guess_mime_from_name(filename: str) -> Optional[str]:
 ###################################################################################################
 
 # ================= Unified extractor =================
+# Metadata Extractor using file's bytes (a unified extractor)
 def metadata_extractor(filename: str, b: bytes) -> Dict[str, Any]:
+    # Extract and compute inexpensive generic features first
     entropy = shannon_entropy(b)
     mime_magic = guess_mime_magic(b)
     ext = guess_ext_from_name(filename)
     
-    sha256, md5, sha1, size = hashes(b)
+    # Calculate the hasches from bytes
+    md5, sha1, sha256, size = hashes(b)
+
+    # Fuzzy hash (optional)
     ssdeep_hash = ssdeep(b)
 
+    # Probe file kind via signatures before heavy parsing
     file_kind = "Unknown"
     elf_meta = None
     macho_meta = None
     pe_meta = None
     
+    # Quick PE check: 'MZ' magic at offset 0
     if not(len(b) >= 2 and b[:2] == b"MZ"):
-        # ELF/Mach-O
+        # ELF/Mach-O via LIEF
         elf_meta, macho_meta = extract_lief_metadata(b)
         if elf_meta:
             file_kind = "ELF"
         elif macho_meta:
             file_kind = "MACHO"
     else:
-        # PE
+        # PE via pefile
         file_kind = "PE"
         pe_meta = extract_pe_metadata(b)
 
-    meta: Dict[str, Any] = {
+    # Assemble unified metadata object
+    metadata: Dict[str, Any] = {
         "filename": filename,
         "size_bytes": size,
         "ext": ext,
@@ -266,6 +300,6 @@ def metadata_extractor(filename: str, b: bytes) -> Dict[str, Any]:
         "ssdeep": ssdeep_hash,
         "external_providers": {}
     }
-    return meta
+    return metadata
 
 ###################################################################################################

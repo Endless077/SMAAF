@@ -29,7 +29,9 @@ from configs.config import settings
 
 ###
 
+import sys
 import time
+import requests
 from pathlib import Path
 from typing import Dict, Optional, Any
 
@@ -40,25 +42,36 @@ class VTClient:
         self,
         api_key: Optional[str] = None,
         *,
-        agent: str = "SMAF/VTClient",
-        timeout: Optional[int] = None,
         verify_ssl: bool = True,
+        timeout: Optional[int] = None,
+        user_agent: Optional[str] = None,
     ) -> None:
         
-        # VirusTotal API Key
+        # Load VirusTotal API key from argument or settings
         self.api_key = api_key or settings.VT_API_KEY
         if not self.api_key:
             raise ValueError("VirusTotal API key not provided.")
 
-        client_kwargs = {"apikey": self.api_key, "agent": agent, "verify_ssl": verify_ssl}
+        self.user_agent = (
+            user_agent
+            or f"VirusTotalClient/1.0 requests/{requests.__version__} "
+               f"Python/{sys.version_info.major}.{sys.version_info.minor}"
+        )
+
+        # Client configuration
+        client_kwargs = {
+            "user_agent": user_agent,
+            "apikey": self.api_key,
+            "verify_ssl": verify_ssl
+            }
         
-        # Timeout
+        # Set timeout from argument or global settings
         if timeout is not None:
             client_kwargs["timeout"] = timeout
         else:
             client_kwargs["timeout"] = settings.TIMEOUT
        
-        # Open a VirusTotal Client
+        # Initialize VirusTotal client
         self._client = vt.Client(**client_kwargs)
 
 ###################################################################################################
@@ -70,14 +83,16 @@ class VTClient:
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
 
+    # Close underlying resources
     def close(self) -> None:
-        if self._client:
-            self._client.close()
+        self._session.close()
 
     # ================= Helpers =================
+    # Convert VT Object to dictionary
     def _obj_to_dict(obj: vt.Object) -> Dict[str, Any]:
         return obj.to_dict()
 
+    # Poll an analysis until completion or timeout
     def _poll_analysis(self, analysis_id: str, *, interval: int = 10, max_wait: Optional[int] = None) -> Dict[str, Any]:
         start = time.time()
         while True:
@@ -92,6 +107,7 @@ class VTClient:
 ###################################################################################################
 
     # ================= File Information =================
+    # Retrieve detailed information about a file by hash
     def get_file_info(self, sample: str) -> Dict[str, Any]:
         try:
             file_obj = self._client.get_object("/files/{}", sample)
@@ -100,6 +116,7 @@ class VTClient:
             raise RuntimeError(f"VirusTotal API error (get_file_info): {e}") from e
 
     # ================= URL Information =================
+    # Retrieve detailed information about a URL
     def get_url_info(self, url: str) -> Dict[str, Any]:
         try:
             url_id = vt.url_id(url)
@@ -109,6 +126,7 @@ class VTClient:
             raise RuntimeError(f"VirusTotal API error (get_url_info): {e}") from e
 
     # ================= Scan File =================
+    # Upload and scan a file, optionally wait for full analysis
     def scan_file(
         self,
         filepath: str | Path,
@@ -131,6 +149,7 @@ class VTClient:
             raise RuntimeError(f"VirusTotal API error (scan_file): {e}") from e
 
     # ================= Scan URL =================
+    # Submit a URL for scanning, optionally wait for analysis
     def scan_url(
         self,
         url: str,
@@ -148,13 +167,15 @@ class VTClient:
         except APIError as e:
             raise RuntimeError(f"VirusTotal API error (scan_url): {e}") from e
 
-    # # ================= Download File =================
+    # ================= Download File =================
+    # Download a file by hash and save it locally
     def download_file(self, file_hash: str, *, dest_dir: str | Path = None) -> str:
         dest = Path(dest_dir or settings.DOWNLOAD_DIR)
         dest.mkdir(parents=True, exist_ok=True)
 
         filename = None
         try:
+            # Attempt to retrieve meaningful filename from VT metadata
             file_obj = self._client.get_object("/files/{}", file_hash)
             name = file_obj.get("meaningful_name") or (file_obj.get("names") or [None])[0]
             if name:
@@ -166,9 +187,11 @@ class VTClient:
 
         out_path = dest / filename
         try:
+            # Save binary content locally
             with out_path.open("wb") as fh:
                 self._client.download_file(file_hash, fh)
         except APIError as e:
+            # Cleanup partial file on failure
             if out_path.exists():
                 try:
                     out_path.unlink()

@@ -25,12 +25,17 @@ def _raise_http(err: Exception) -> None:
     if isinstance(err, HTTPException):
         raise err
     
+    if isinstance(err, APIError):
+        raise HTTPException(status_code=502, detail=f"VirusTotal API error: {err}")
+    
     raise HTTPException(status_code=500, detail=str(err))
 
 ###################################################################################################
 
 # ================= Endpoints =================
-@app.get("/virustotal/file/{file_id}", tags=["VirustTotal"], status_code=200)
+@app.get("/virustotal/file/{file_id}", tags=["VirustTotal"], status_code=200,
+        summary="VirusTotal file analysis by ID.",
+        description="Retrieve VirusTotal analysis details of a specific file using its ID or hash.")
 def get_file_info(file_id: str):
     try:
         with VTClient() as vt:
@@ -39,7 +44,9 @@ def get_file_info(file_id: str):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/virustotal/url/", tags=["VirustTotal"], status_code=200)
+@app.get("/virustotal/url/", tags=["VirustTotal"], status_code=200,
+        summary="VirusTotal URL analysis.",
+        description="Retrieve the VirusTotal report for a given URL.")
 def get_url_info(url: str):
     try:
         with VTClient() as vt:
@@ -48,7 +55,9 @@ def get_url_info(url: str):
     except Exception as e:
         _raise_http(e)
 
-@app.post("/virustotal/scan/file", tags=["VirustTotal"], status_code=200)
+@app.post("/virustotal/scan/file", tags=["VirustTotal"], status_code=200,
+        summary="VirusTotal file scan.",
+        description="Upload a file to VirusTotal for scanning. Returns the analysis result, either immediately or after completion if wait is enabled.")
 async def scan_file(file: UploadFile, wait: bool = Form(True)):
     temp_path = Path(f"/tmp/{file.filename}")
 
@@ -68,7 +77,9 @@ async def scan_file(file: UploadFile, wait: bool = Form(True)):
         if temp_path.exists():
             temp_path.unlink(missing_ok=True)
 
-@app.post("/virustotal/scan/url", tags=["VirustTotal"], status_code=200)
+@app.post("/virustotal/scan/url", tags=["VirustTotal"], status_code=200,
+        summary="VirusTotal URL scan.",
+        description="Submit a URL to VirusTotal for scanning. Returns the analysis status and results, depending on the wait option.")
 def scan_url(url: str = Form(...), wait: bool = Form(True)):
     try:
         with VTClient() as vt:
@@ -77,7 +88,9 @@ def scan_url(url: str = Form(...), wait: bool = Form(True)):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/virustotal/download/{file_hash}", tags=["VirustTotal"], status_code=201)
+@app.get("/virustotal/download/{file_hash}", tags=["VirustTotal"], status_code=201,
+        summary="VirusTotal download file.",
+        description="Download a file from VirusTotal using its hash and save it locally.")
 def download_file(file_hash: str):
     dest_dir = settings.DOWNLOAD_DIR / "VirusTotal"
     dest_dir.mkdir(parents=True, exist_ok=True)

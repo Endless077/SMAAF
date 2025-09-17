@@ -23,21 +23,27 @@ from configs.config import settings
 
 ###################################################################################################
 
+# ================= Provider Extraction =================
+# Extract samples from provider directories, build metadata, and store results
 def extract_provider(sample: str | None = None, provider: str | None = None) -> dict:
+    # Ensure provider is specified
     if not provider:
         raise ValueError("Parameter 'provider' is required.")
 
+    # Resolve provider directory path
     provider_dir = os.path.join(settings.DOWNLOAD_DIR, provider)
     if not os.path.isdir(provider_dir):
         raise FileNotFoundError(f"Provider directory not found: {provider_dir}")
 
     targets_on_disk: List[str] = []
     if sample:
+        # Check if specific sample exists
         candidate = os.path.join(provider_dir, sample)
         if not os.path.isfile(candidate):
             raise FileNotFoundError(f"Sample not found: {candidate}")
         targets_on_disk = [candidate]
     else:
+        # Collect all available samples in provider directory
         for name in os.listdir(provider_dir):
             if name.startswith("."):
                 continue
@@ -50,24 +56,36 @@ def extract_provider(sample: str | None = None, provider: str | None = None) -> 
     items: List[dict] = []
     errors: List[str] = []
 
+    # Process each sample found
     for disk_fp in targets_on_disk:
         tmpdir = None
         try:
+            # Handle ZIP or single file extraction
             targets_to_process, tmpdir = gather_targets(disk_fp)
 
             for actual_fp in targets_to_process:
+                # Get original filename
                 original_name = os.path.basename(actual_fp)
+
+                # Read file content in binary mode
                 with open(actual_fp, "rb") as f:
                     content = f.read()
 
+                # Extract metadata dictionary
                 meta_dict = metadata_extractor(original_name, content)
+
+                # Build FileMetadata object
                 file_meta = FileMetadata(**meta_dict)
                 sha256 = file_meta.sha256
 
+                # Compute paths for file and metadata
                 file_path, metadata_path = build_paths(original_name, sha256)
+
+                # Write file if not already stored
                 if not os.path.exists(file_path):
                     write_file(file_path, content)
 
+                # Build MetadataItem for this sample
                 meta_item = MetadataItem(
                     id=sha256,
                     original_name=original_name,
@@ -80,14 +98,17 @@ def extract_provider(sample: str | None = None, provider: str | None = None) -> 
                     upload_time=datetime.now(timezone.utc).isoformat(),
                 )
 
+                # Persist metadata as JSON
                 write_json(metadata_path, meta_item.model_dump())
 
+                # Append to items list
                 items.append(meta_item.model_dump())
 
         except Exception as e:
             errors.append(f"{os.path.basename(disk_fp)}: {e}")
 
         finally:
+            # Clean up temporary extraction directory
             if tmpdir and os.path.isdir(tmpdir):
                 try:
                     shutil.rmtree(tmpdir)
@@ -106,6 +127,8 @@ def extract_provider(sample: str | None = None, provider: str | None = None) -> 
         "success": success,
     }
 
+# ================= Provider Queries =================
+# Query external provider APIs for sample reports
 def query_provider(sample: Optional[str] = None, provider: Optional[str] = None) -> dict:
     try:
         if provider == "VirusTotal":
@@ -124,10 +147,13 @@ def query_provider(sample: Optional[str] = None, provider: Optional[str] = None)
     except Exception as e:
         raise e
     
+# ================= Provider Samples =================
+# List available samples stored by providers
 def samples_provider(sample: str = None, provider: str = None) -> dict:
     results = []
 
     if provider:
+        # Search only in the specified provider directory
         dirpath = settings.PROVIDER_DIR_MAP[provider]
         if not dirpath.exists():
             return {"results": [], "success": False}
@@ -140,7 +166,8 @@ def samples_provider(sample: str = None, provider: str = None) -> dict:
         if files:
             results.append({"provider": provider, "sample": sample, "files": files})
 
-    else: 
+    else:
+        # Iterate across all configured providers
         for prov, folder in settings.PROVIDER_DIR_MAP.items():
             dirpath = settings.DOWNLOAD_DIR / folder
             if not dirpath.exists():
@@ -155,8 +182,11 @@ def samples_provider(sample: str = None, provider: str = None) -> dict:
 
     return {"results": results, "success": bool(results)}
 
+
 ###################################################################################################
 
+# ================= Metadata Filtering =================
+# Apply filtering rules (tags, extension, size, date, etc.) to metadata objects
 def filter_metadata(
     objects: Iterable[Dict[str, Any]],
     tags: Optional[List[str]] = None,
@@ -170,6 +200,8 @@ def filter_metadata(
     since_iso: Optional[str] = None,
     until_iso: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
+    
+    # Normalize filtering inputs
     ext_norm   = norm_ext(ext)
     src_norm   = norm_lower(source)
     fk_norm    = norm_upper(file_kind)
@@ -223,8 +255,11 @@ def filter_metadata(
             return True
         predicates.append(_dt_ok)
 
+    # Apply all predicates to objects
     return [obj for obj in objects if all(pred(obj) for pred in predicates)]
        
+# ================= Metadata Search =================
+# Search metadata by hash or filename
 def search_metadata(query: str) -> List[Dict[str, Any]]:
     query = query.strip()
     hash = classify_hash(query)
@@ -241,6 +276,8 @@ def search_metadata(query: str) -> List[Dict[str, Any]]:
 
     return results
 
+# ================= File/Metadata Listing =================
+# List all stored file objects (JSON-parsed)
 def list_all_files() -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
     for p in iter_files(settings.SAMPLES_DIR):
@@ -249,6 +286,7 @@ def list_all_files() -> List[Dict[str, Any]]:
             results.append(obj)
     return results
 
+# List all stored metadata JSON objects
 def list_all_metadata() -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
     for p in iter_jsons(settings.SAMPLES_DIR):

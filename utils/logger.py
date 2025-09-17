@@ -47,7 +47,6 @@ def setup_logging(
         if isinstance(file, str):
             log_filename = file
         else:
-            from datetime import datetime
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             log_filename = str(logs_dir / f"log_{timestamp}.log")
 

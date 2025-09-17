@@ -10,6 +10,7 @@
 import os
 import sys
 import signal
+import logging
 from datetime import datetime, timezone
 
 # Server
@@ -19,8 +20,8 @@ from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi import File, Form, Query, Body, UploadFile
 
 from fastapi.responses import JSONResponse, RedirectResponse
-from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.encoders import jsonable_encoder
 
 # Providers Endpoints
 from sources.endpoints.endpoints_vt import *
@@ -306,20 +307,19 @@ SHUTDOWN_TAG = "Shutdown"
 
 
 def startup():
-    #LOG_SYS.write(STARTUP_TAG, r" ________               _        _       _______  _____  ")
-    #LOG_SYS.write(STARTUP_TAG, r"|_   __  |             / |_     / \     |_   __ \|_   _| ")
-    #LOG_SYS.write(STARTUP_TAG, r"  | |_ \_|,--.   .--. `| |-'   / _ \      | |__) | | |   ")
-    #LOG_SYS.write(STARTUP_TAG, r"  |  _|  `'_\ : ( (`\] | |    / ___ \     |  ___/  | |   ")
-    #LOG_SYS.write(STARTUP_TAG, r" _| |_   // | |, `'.'. | |, _/ /   \ \_  _| |_    _| |_  ")
-    #LOG_SYS.write(STARTUP_TAG, r"|_____|  \'-;__/[\__) )\__/|____| |____||_____|  |_____| ")
-    pass
+    logging.info(r" ________               _        _       _______  _____  ")
+    logging.info(r"|_   __  |             / |_     / \     |_   __ \|_   _| ")
+    logging.info(r"  | |_ \_|,--.   .--. `| |-'   / _ \      | |__) | | |   ")
+    logging.info(r"  |  _|  `'_\ : ( (`\] | |    / ___ \     |  ___/  | |   ")
+    logging.info(r" _| |_   // | |, `'.'. | |, _/ /   \ \_  _| |_    _| |_  ")
+    logging.info(r"|_____|  \'-;__/[\__) )\__/|____| |____||_____|  |_____| ")
 
 def shutdown(signum, frame):
     try:
-        #LOG_SYS.write(SHUTDOWN_TAG, "Shutdown FastAPI server.")
+        logging.info("Shutdown FastAPI server.")
         sys.exit(0)
     except Exception as e:
-        #LOG_SYS.write(SHUTDOWN_TAG, f"An unexpected error occurred: {e}")
+        logging.info(f"An unexpected error occurred: {e}")
         sys.exit(1)
 
 
