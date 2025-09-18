@@ -58,7 +58,6 @@ def _detect_basic_info(r2) -> Dict[str, Any]:
         logging.warning("Failed to read basic info with 'ij': %s", e)
         return {}
 
-
 def _list_functions(r2) -> List[Dict[str, Any]]:
     """Get functions via 'aflj', ordered by offset."""
     try:
@@ -144,7 +143,7 @@ def _decompile_text(r2, addr: int) -> Optional[str]:
 
 ###################################################################################################
 
-# ================= Main API =================
+# ================= Disassemble =================
 def disassemble_radare2(
     file_path: str,
     output_root: str = "disassembled"
@@ -257,19 +256,13 @@ def disassemble_radare2(
 def _cli() -> None:
     parser = argparse.ArgumentParser(description="Extract metadata from disassembly (radare2).")
     parser.add_argument("file", help="Target binary path to analyze.")
-    parser.add_argument("--output", dest="output_root", default="disassembled", help="Results output directory.")
+    parser.add_argument("--output", default="disassembled", help="Results output directory.")
     args = parser.parse_args()
 
-    # Ensure required args
-    if not args.file:
-        raise ValueError("Parameter 'file' is required.")
-
-    # Startup logs
     setup_logging()
 
     logging.info(f"radare2 disassembly file: {args.file}.")
 
-    # Startup disassemble with radare2
     disassemble_radare2(args.file, output_root=args.output_root)
 
     logging.info(f"radare2 disassembly complete, results in: {args.output_root}.")

@@ -25,6 +25,7 @@ from utilities import *
 
 ###################################################################################################
 
+# ================= Helpers =================
 def _resolve_analyze_headless(ghidra_path: str | None) -> str:
     """Resolve path to Ghidra's analyzeHeadless."""
     if ghidra_path:
@@ -43,6 +44,7 @@ def _resolve_analyze_headless(ghidra_path: str | None) -> str:
 
 ###################################################################################################
 
+# ================= Disassemble =================
 def disassemble_ghidra(
     file_path: str,
     output_root: str = "disassembled",
