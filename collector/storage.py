@@ -24,8 +24,8 @@ from configs.config import settings
 ###################################################################################################
 
 # ================= Provider Extraction =================
-# Extract samples from provider directories, build metadata, and store results
 def extract_provider(sample: str | None = None, provider: str | None = None) -> dict:
+    """Extract samples from provider directories, build metadata, and store results."""
     # Ensure provider is specified
     if not provider:
         raise ValueError("Parameter 'provider' is required.")
@@ -128,8 +128,8 @@ def extract_provider(sample: str | None = None, provider: str | None = None) -> 
     }
 
 # ================= Provider Queries =================
-# Query external provider APIs for sample reports
 def query_provider(sample: Optional[str] = None, provider: Optional[str] = None) -> dict:
+    """Query external provider APIs for sample reports."""
     try:
         if provider == "VirusTotal":
             client = VTClient()
@@ -148,8 +148,8 @@ def query_provider(sample: Optional[str] = None, provider: Optional[str] = None)
         raise e
     
 # ================= Provider Samples =================
-# List available samples stored by providers
 def samples_provider(sample: str = None, provider: str = None) -> dict:
+    """List available samples stored by providers."""
     results = []
 
     if provider:
@@ -186,7 +186,6 @@ def samples_provider(sample: str = None, provider: str = None) -> dict:
 ###################################################################################################
 
 # ================= Metadata Filtering =================
-# Apply filtering rules (tags, extension, size, date, etc.) to metadata objects
 def filter_metadata(
     objects: Iterable[Dict[str, Any]],
     tags: Optional[List[str]] = None,
@@ -200,7 +199,7 @@ def filter_metadata(
     since_iso: Optional[str] = None,
     until_iso: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    
+    """Apply filtering rules to metadata objects."""
     # Normalize filtering inputs
     ext_norm   = norm_ext(ext)
     src_norm   = norm_lower(source)
@@ -259,8 +258,8 @@ def filter_metadata(
     return [obj for obj in objects if all(pred(obj) for pred in predicates)]
        
 # ================= Metadata Search =================
-# Search metadata by hash or filename
 def search_metadata(query: str) -> List[Dict[str, Any]]:
+    """Search metadata by hash or filename."""
     query = query.strip()
     hash = classify_hash(query)
 
@@ -277,8 +276,8 @@ def search_metadata(query: str) -> List[Dict[str, Any]]:
     return results
 
 # ================= File/Metadata Listing =================
-# List all stored file objects (JSON-parsed)
 def list_all_files() -> List[Dict[str, Any]]:
+    """List all stored file objects (JSON-parsed)."""
     results: List[Dict[str, Any]] = []
     for p in iter_files(settings.SAMPLES_DIR):
         obj = read_json(p)
@@ -286,8 +285,8 @@ def list_all_files() -> List[Dict[str, Any]]:
             results.append(obj)
     return results
 
-# List all stored metadata JSON objects
 def list_all_metadata() -> List[Dict[str, Any]]:
+    """List all stored metadata JSON objects."""
     results: List[Dict[str, Any]] = []
     for p in iter_jsons(settings.SAMPLES_DIR):
         obj = read_json(p)

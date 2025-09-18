@@ -20,8 +20,8 @@ from configs.config import Settings
 ###################################################################################################
 
 # ================= Files =================
-# Iterate over files in a directory, excluding JSON files
 def iter_files(dir) -> Generator[str, None, None]:
+    """Iterate over files in a directory, excluding JSON files."""
     if not os.path.isdir(dir):
         return None
     for name in os.listdir(dir):
@@ -30,8 +30,8 @@ def iter_files(dir) -> Generator[str, None, None]:
         if os.path.isfile(path) and not name.lower().endswith(".json"):
             yield path
 
-# Iterate over JSON files in a directory
 def iter_jsons(dir: str) -> Generator[str, None, None]:
+    """Iterate over JSON files in a directory."""
     if not os.path.isdir(dir):
         return None
     for name in os.listdir(dir):
@@ -39,44 +39,44 @@ def iter_jsons(dir: str) -> Generator[str, None, None]:
         if name.lower().endswith(".json"):
             yield os.path.join(dir, name)
 
-# Iterate over all entries (files + dirs) in a directory
 def iter_all(dir: str) -> Generator[str, None, None]:
+    """Iterate over all entries (files + dirs) in a directory."""
     if not os.path.isdir(dir):
         return None
     for name in os.listdir(dir):
         yield os.path.join(dir, name)
 
-# Read a file in binary mode, return None on failure
 def read_file(path: str) -> bytes | None:
+    """Read a file in binary mode, return None on failure."""
     try:
         with open(path, "rb") as f:
             return f.read()
     except (IOError, OSError):
         return None
     
-# Read a JSON file, return parsed dict or None on error
 def read_json(path: str) -> Dict[str, Any] | None:
+    """Read a JSON file, return parsed dict or None on error."""
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     except (IOError, OSError, json.JSONDecodeError):
         return None
 
-# Write raw bytes to a file
 def write_file(path: str, data: bytes) -> None:
+    """Write raw bytes to a file."""
     with open(path, "wb") as f:
         f.write(data)
 
-# Write a JSON object to a file with formatting
 def write_json(path: str, obj: dict) -> None:
+    """Write a JSON object to a file with formatting."""
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, indent=2, ensure_ascii=False, sort_keys=True)
 
 ###################################################################################################
 
 # ================= Archives =================
-# Extract files from a password-protected ZIP archive into a temp dir
 def extract_zip(zip_path: str, password: str = "infected") -> Tuple[str, List[str]]:
+    """Extract files from a password-protected ZIP archive into a temp dir."""
     if not zipfile.is_zipfile(zip_path):
         raise ValueError(f"Not a zip file: {zip_path}")
 
@@ -118,8 +118,8 @@ def extract_zip(zip_path: str, password: str = "infected") -> Tuple[str, List[st
 ###################################################################################################
 
 # ================= Paths =================
-# Build safe storage paths for a sample and its metadata
 def build_paths(filename: str, sha256: str) -> Tuple[str, str]:
+    """Build safe storage paths for a sample and its metadata."""
     # Sanitize filename to avoid unsafe characters
     safe_name = "".join(c for c in filename if c.isalnum() or c in (".", "_", "-", " ")).strip()
     
@@ -133,8 +133,8 @@ def build_paths(filename: str, sha256: str) -> Tuple[str, str]:
     meta_path = os.path.join(Settings.SAMPLES_DIR, f"{sha256}.json")
     return file_path, meta_path
 
-# Gather files to process: single file or extracted ZIP content
 def gather_targets(file_path: str) -> Tuple[List[str], Optional[str]]:
+    """Gather files to process: single file or extracted ZIP content."""
     if zipfile.is_zipfile(file_path):
         tmpdir, extracted = extract_zip(file_path, password="infected")
         return extracted, tmpdir
@@ -143,8 +143,8 @@ def gather_targets(file_path: str) -> Tuple[List[str], Optional[str]]:
 ###################################################################################################
 
 # ================= Normalization =================
-# Normalize extension to lowercase, prefixed with a dot
 def norm_ext(ext: Optional[str]) -> Optional[str]:
+    """Normalize extension to lowercase, prefixed with a dot."""
     if not ext:
         return None
     e = ext.strip().casefold()
@@ -152,16 +152,16 @@ def norm_ext(ext: Optional[str]) -> Optional[str]:
         return None
     return e if e.startswith(".") else f".{e}"
 
-# Normalize string to lowercase
 def norm_lower(s: Any) -> str:
+    """Normalize string to lowercase."""
     return str(s).strip().casefold() if s is not None else ""
 
-# Normalize string to uppercase
 def norm_upper(s: Any) -> str:
+    """Normalize string to uppercase."""
     return str(s).strip().upper() if s is not None else ""
 
-# Parse ISO 8601 datetime string, return None on failure
 def parse_iso(dt: Optional[str]) -> Optional[datetime]:
+    """Parse ISO 8601 datetime string, return None on failure."""
     if not dt:
         return None
     try:

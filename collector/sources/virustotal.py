@@ -107,8 +107,8 @@ class VTClient:
 ###################################################################################################
 
     # ================= File Information =================
-    # Retrieve detailed information about a file by hash
     def get_file_info(self, sample: str) -> Dict[str, Any]:
+        """Retrieve detailed information about a file by hash."""
         try:
             file_obj = self._client.get_object("/files/{}", sample)
             return self._obj_to_dict(file_obj)
@@ -116,8 +116,8 @@ class VTClient:
             raise RuntimeError(f"VirusTotal API error (get_file_info): {e}") from e
 
     # ================= URL Information =================
-    # Retrieve detailed information about a URL
     def get_url_info(self, url: str) -> Dict[str, Any]:
+        """Retrieve detailed information about a URL."""
         try:
             url_id = vt.url_id(url)
             url_obj = self._client.get_object("/urls/{}", url_id)
@@ -126,7 +126,6 @@ class VTClient:
             raise RuntimeError(f"VirusTotal API error (get_url_info): {e}") from e
 
     # ================= Scan File =================
-    # Upload and scan a file, optionally wait for full analysis
     def scan_file(
         self,
         filepath: str | Path,
@@ -135,6 +134,7 @@ class VTClient:
         poll_interval: int = 10,
         max_wait: Optional[int] = None,
     ) -> Dict[str, Any]:
+        """Submit and scan a file, optionally wait for analysis."""
         path = Path(filepath)
         if not path.is_file():
             raise FileNotFoundError(f"File not found: {path}")
@@ -149,7 +149,6 @@ class VTClient:
             raise RuntimeError(f"VirusTotal API error (scan_file): {e}") from e
 
     # ================= Scan URL =================
-    # Submit a URL for scanning, optionally wait for analysis
     def scan_url(
         self,
         url: str,
@@ -158,6 +157,7 @@ class VTClient:
         poll_interval: int = 10,
         max_wait: Optional[int] = None,
     ) -> Dict[str, Any]:
+        """Submit and scan a URL, optionally wait for analysis."""
         try:
             analysis = self._client.scan_url(url)
             analysis_id = analysis.id
@@ -168,8 +168,8 @@ class VTClient:
             raise RuntimeError(f"VirusTotal API error (scan_url): {e}") from e
 
     # ================= Download File =================
-    # Download a file by hash and save it locally
     def download_file(self, file_hash: str, *, dest_dir: str | Path = None) -> str:
+        """Download a file by hash and save it locally."""
         dest = Path(dest_dir or settings.DOWNLOAD_DIR)
         dest.mkdir(parents=True, exist_ok=True)
 

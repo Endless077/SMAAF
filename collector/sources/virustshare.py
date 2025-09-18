@@ -92,7 +92,6 @@ class VSClient:
         self._session.close()
             
     # ================= Helpers =================
-    # Perform a GET request to VirusShare API with shared params/handling
     def _get(self, endpoint: str, *, hash_value: str, stream: bool = False) -> requests.Response:
         # Endpoint URL building
         url = f"{API_BASE}{endpoint}"
@@ -131,8 +130,8 @@ class VSClient:
 ###################################################################################################
 
     # ================= File Report =================
-    # Retrieve structured information about a sample (JSON)
     def file_report(self, hash_value: str) -> Dict[str, Any]:
+        """Full structured information retrive about a sample (JSON)."""
         r = self._get("/file", hash_value=hash_value)
         if r.status_code == 200:
             try:
@@ -142,8 +141,8 @@ class VSClient:
         raise VirusShareError(f"Unexpected status for /file: {r.status_code}")
 
     # ================= Quick Status =================
-    # Lightweight existence/classification check; returns integer code
     def quick_status(self, hash_value: str) -> int:
+        """Lightweight existence/classification check, returns integer code."""
         r = self._get("/quick", hash_value=hash_value)
         if r.status_code == 200:
             try:
@@ -154,8 +153,8 @@ class VSClient:
         raise VirusShareError(f"Unexpected status for /quick: {r.status_code}")
 
     # ================= Source Info =================
-    # Retrieve provenance/source data for a sample
     def source_info(self, hash_value: str) -> Dict[str, Any]:
+        """Retrieve provenance/source data for a sample."""
         r = self._get("/source", hash_value=hash_value)
         if r.status_code == 200:
             try:
@@ -165,7 +164,6 @@ class VSClient:
         raise VirusShareError(f"Unexpected status for /source: {r.status_code}")
 
     # ================= Download Samples =================
-    # Download the sample as a ZIP (stream to disk to avoid large memory usage)
     def download_sample(
         self,
         hash_value: str,
@@ -173,6 +171,7 @@ class VSClient:
         dest_dir: str | Path = None,
         filename: Optional[str] = None
     ) -> Path:
+        """Download the sample as a ZIP (stream to disk to avoid large memory usage)."""
         # Pre-check sample classification to avoid benign downloads
         file_info = self.file_report(hash_value)
         if file_info.get("response") == 2:

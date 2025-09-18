@@ -31,8 +31,8 @@ _ssdeep = _try_import("ssdeep")    # from ssdeep
 ###################################################################################################
 
 # ================= ELF / Mach-O metadata (LIEF) =================
-# Parse ELF/Mach-O using LIEF; returns (elf_dict, macho_dict)
 def extract_lief_metadata(b: bytes) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    """Parse ELF/Mach-O using LIEF; returns (elf_dict, macho_dict)."""
     # Check if lief is installed
     if not _lief:
         return None, None
@@ -90,8 +90,8 @@ def extract_lief_metadata(b: bytes) -> Tuple[Optional[Dict[str, Any]], Optional[
         return None, None
 
 # ================= PE metadata (pefile) =================
-# Parse PE headers/sections/imports via pefile
 def extract_pe_metadata(b: bytes) -> Optional[Dict[str, Any]]:
+    """Parse PE headers/sections/imports via pefile."""
     # Check if pefile is installed
     if not _pefile:
         return None
@@ -177,8 +177,8 @@ def extract_pe_metadata(b: bytes) -> Optional[Dict[str, Any]]:
         return None
     
 # ================= Entropy =================
-# Shannon entropy over raw bytes (rounded for compactness)
 def shannon_entropy(b: bytes) -> float:
+    """Shannon entropy over raw bytes (rounded for compactness)."""
     if not b:
         return 0.0
     
@@ -195,8 +195,8 @@ def shannon_entropy(b: bytes) -> float:
     return round(entropy, 4)
 
 # ================= Hashing =================
-# Identify hash type by hex-length; returns 'md5'/'sha1'/'sha256' or None
 def classify_hash(s: str) -> str | None:
+    """Identify hash type by hex-length; returns 'md5'/'sha1'/'sha256' or None."""
     s = s.lower()
     if not re.fullmatch(r"[0-9a-f]+", s):
         return None
@@ -209,8 +209,8 @@ def classify_hash(s: str) -> str | None:
     }
     return hash_map.get(len(s))
 
-# Compute common hashes and size once to avoid repeated passes
 def hashes(b: bytes) -> Tuple[str, str, str, int]:
+    """Compute common hashes and size once to avoid repeated passes."""
     return (
         hashlib.md5(b).hexdigest(),
         hashlib.sha1(b).hexdigest(),
@@ -218,8 +218,8 @@ def hashes(b: bytes) -> Tuple[str, str, str, int]:
         len(b),
     )
 
-# Compute ssdeep (fuzzy hash) if library is available
 def ssdeep(b: bytes) -> Optional[str]:
+    """Compute ssdeep (fuzzy hash) if library is available."""
     if _ssdeep:
         try:
             return _ssdeep.hash(b)
@@ -228,8 +228,8 @@ def ssdeep(b: bytes) -> Optional[str]:
     return None
 
 # ================= MIME / extension =================
-# Best-effort magic-based type (human-readable), may raise on some platforms
 def guess_mime_magic(b: bytes) -> Optional[str]:
+    """Best-effort magic-based type (human-readable), may raise on some platforms."""
     if _magic:
         try:
             ms = _magic.Magic(mime=False)
@@ -238,21 +238,21 @@ def guess_mime_magic(b: bytes) -> Optional[str]:
             return None
     return None
 
-# Extract extension from filename (lowercased, includes leading dot)
 def guess_ext_from_name(filename: str) -> Optional[str]:
+    """Guess extension from filename (lowercased, includes leading dot),"""
     ext = os.path.splitext(filename)[1].lower() or None
     return ext
 
-# Guess MIME from filename via mimetypes DB
 def guess_mime_from_name(filename: str) -> Optional[str]:
+    """Guess MIME from filename via mimetypes DB."""
     mime, _ = mimetypes.guess_type(filename)
     return mime
 
 ###################################################################################################
 
 # ================= Unified extractor =================
-# Metadata Extractor using file's bytes (a unified extractor)
 def metadata_extractor(filename: str, b: bytes) -> Dict[str, Any]:
+    """Metadata Extractor using file's bytes (a unified extractor)."""
     # Extract and compute inexpensive generic features first
     entropy = shannon_entropy(b)
     mime_magic = guess_mime_magic(b)
