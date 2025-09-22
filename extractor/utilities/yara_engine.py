@@ -6,7 +6,7 @@
 #      |______|\'-;__/[___]   \'-;__/ |________|[___||__].',__` [___][___||__]'.__.' 
 #                                                       ( ( __))                     
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Union, Optional, Any
 from pathlib import Path
 import binascii
 import logging
@@ -31,16 +31,17 @@ def _serialize_match(m: yara.Match, *, max_strings: int = 25, max_ascii_len: int
     """Serialize a yara.Match object including its matched strings with offset, identifier, and data previews."""
     serialization: Dict[str, Any] = {
         "rule": m.rule,
+        "namespace": getattr(m, "namespace", None),
         "tags": list(m.tags),
         "meta": dict(m.meta) if m.meta else {},
         "strings": []
     }
-    
+
     # Lightweight deduplication by (offset, identifier, data prefix)
     # and enforce a maximum number of strings.
     seen = set()
     for off, ident, data in m.strings:
-        key = (off, ident, data[:64]) 
+        key = (off, ident, data[:64])
         if key in seen:
             continue
         seen.add(key)
@@ -62,30 +63,52 @@ def _serialize_match(m: yara.Match, *, max_strings: int = 25, max_ascii_len: int
 ###################################################################################################
 
 # ================= Rules Compiler =================
-def compile_dir(yara_dir: Optional[Path]) -> Optional[yara.Rules]:
-    """Compile all YARA rules in a directory (recursively)."""
-    if not yara_dir:
-        logging.warning("No YARA directory provided")
-        return None
-    if not yara_dir.exists():
-        logging.warning("YARA directory does not exist: %s", yara_dir)
-        return None
+def compile_path(path: Union[str, Path]) -> Optional[yara.Rules]:
+    """
+    Compile YARA rules from:
+      - a single rules file in YARA format (.yar)
+      - a directory: if index exists in root, compile only that, otherwise recursively compile all .yar files.
 
-    logging.info("Scanning for YARA files in %s", yara_dir)
-    filepaths = {}
-    for idx, f in enumerate(sorted(yara_dir.rglob("*"))):
-        if f.suffix.lower() in {".yar", ".yara"}:
-            filepaths[f"r{idx}"] = str(f)
-
-    if not filepaths:
-        logging.warning("No YARA files found in %s", yara_dir)
+    Returns yara.Rules or None on failure.
+    """
+    p = Path(path) if not isinstance(path, Path) else path
+    if not p.exists():
+        logging.warning("File/Directory not found: %s", p)
         return None
 
-    logging.info("Compiling %d YARA files", len(filepaths))
     try:
-        rules = yara.compile(filepaths=filepaths)
-        logging.info("YARA compilation succeeded.")
-        return rules
+        if p.is_file() and p.suffix.lower() in {".yar"}:
+            # File case (i.e index.yar)
+            logging.info("Compiling YARA from file: %s", p)
+            return yara.compile(filepath=str(p), includes=True)
+
+        if p.is_dir():
+            # Case 2: directory
+            index_candidates = [p / "index.yar"]
+            for idx in index_candidates:
+                if idx.exists():
+                    logging.info("Found YARA index: %s (compiling only this file).", idx)
+                    return yara.compile(filepath=str(idx), includes=True)
+
+            # No index: compile all .yar/.yara recursively
+            logging.info("No index found. Compiling all .yar in %s recursively.", p)
+            filepaths = {}
+            for i, f in enumerate(sorted(p.rglob("*"))):
+                if f.suffix.lower() in {".yar"}:
+                    # simple namespace
+                    ns = f"r{i}"
+                    filepaths[ns] = str(f)
+            if not filepaths:
+                logging.warning("YARA files not found: %s", p)
+                return None
+            return yara.compile(filepaths=filepaths, includes=True)
+
+        logging.warning("Path is neither YARA file nor directory: %s", p)
+        return None
+
+    except yara.SyntaxError as e:
+        logging.error("YARA Syntax Error: %s", e)
+        return None
     except Exception as e:
         logging.error("YARA compilation failed: %s", e)
         return None
@@ -93,26 +116,32 @@ def compile_dir(yara_dir: Optional[Path]) -> Optional[yara.Rules]:
 ###################################################################################################
 
 # ================= Scanners =================
-def scan_file(ruleset: yara.Rules, target: Path, *, max_strings: int = 25) -> List[Dict[str, Any]]:
-    """Scan a file with a given YARA ruleset. Include dettagli delle stringhe matchate."""
+def scan_file(ruleset: yara.Rules, target: Path, *, max_strings: int = 25, timeout: float = 10.0) -> List[Dict[str, Any]]:
+    """Scan a file with a given YARA ruleset. Includes details about the string match."""
     logging.info("Scanning file with YARA: %s", target)
-    out: list[dict[str, Any]] = []
+    out: List[Dict[str, Any]] = []
     try:
-        for m in ruleset.match(str(target)):
+        for m in ruleset.match(str(target), timeout=timeout):
             out.append(_serialize_match(m, max_strings=max_strings))
         logging.info("YARA file scan complete: %d matches in %s", len(out), target)
+    except yara.TimeoutError:
+        logging.warning("YARA timeout on file: %s (timeout=%.1fs).", target, timeout)
     except Exception as e:
         logging.warning("YARA file scan failed for %s: %s", target, e)
     return out
 
-def scan_text(ruleset: yara.Rules, text: str, *, max_strings: int = 25) -> List[Dict[str, Any]]:
-    """Scan a text string with a given YARA ruleset. Include dettagli delle stringhe matchate."""
+
+def scan_text(ruleset: yara.Rules, text: str, *, max_strings: int = 25, timeout: float = 10.0) -> List[Dict[str, Any]]:
+    """Scan a text string with a given YARA ruleset. Includes details about the string match."""
     logging.info("Scanning text buffer with YARA (size=%d chars).", len(text))
-    out: list[dict[str, Any]] = []
+    out: List[Dict[str, Any]] = []
     try:
-        for m in ruleset.match(data=text):
+        data = text.encode("utf-8", errors="ignore")
+        for m in ruleset.match(data=data, timeout=timeout):
             out.append(_serialize_match(m, max_strings=max_strings))
-        logging.info("YARA text scan complete: %d matches", len(out))
+        logging.info("YARA text scan complete: %d matches.", len(out))
+    except yara.TimeoutError:
+        logging.warning("YARA timeout on text buffer (timeout=%.1fs).", timeout)
     except Exception as e:
         logging.warning("YARA text scan failed: %s", e)
     return out

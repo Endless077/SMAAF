@@ -85,7 +85,7 @@ def process_sample(
 
     # 6) YARA analysis: binary + text corpus
     logging.info("Compiling YARA rules (if provided).")
-    rules = compile_dir(yara_dir)
+    rules = compile_path(yara_dir)
     yara_bin_matches: List[Dict[str, Any]] = scan_file(rules, sample_path) if rules else []
     combined_text = "\n".join(all_lines)
     yara_text_matches: List[Dict[str, Any]] = scan_text(rules, combined_text) if rules else []
