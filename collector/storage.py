@@ -11,15 +11,15 @@ from typing import List, Dict, Iterable, Callable, Optional, Any
 import shutil
 
 # Project Modules
-from models import *
-from metadata import *
-from utilities import *
+from collector.models import *
+from collector.metadata import *
+from collector.utilities import *
 
-from sources.virustotal import VTClient
-from sources.virustshare import VSClient
-from sources.malwarebazaar import MBClient
+from collector.sources.virustotal import VTClient
+from collector.sources.virustshare import VSClient
+from collector.sources.malwarebazaar import MBClient
 
-from configs.config import settings
+from collector.configs.config import settings
 
 ###################################################################################################
 

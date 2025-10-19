@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import List, Tuple, Dict, Generator, Optional, Any
 
 # Project Configs
-from configs.config import Settings
+from collector.configs.config import Settings
 
 ###################################################################################################
 

@@ -10,13 +10,14 @@ import json
 import requests
 from pathlib import Path as SysPath
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, UploadFile, File, Form, Path, Query, Body
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Path, Query, Body
 
 ###
 
-from sources.malwarebazaar import MBClient, MalwareBazaarError
-from configs.config import settings
-from collector.main import app
+from collector.sources.malwarebazaar import MBClient, MalwareBazaarError
+from collector.configs.config import settings
+
+router = APIRouter()
 
 ###################################################################################################
 
@@ -59,10 +60,10 @@ def _raise_http(err: Exception) -> None:
 ###################################################################################################
 
 # ================= Endpoints =================
-@app.post("/malwarebazaar/query", tags=["Malware Bazaar"], status_code=200,
-        summary="MalwareBazaar generic query wrapper route.",
+@router.post("/malwarebazaar/query", tags=["Malware Bazaar"], status_code=200,
+        summary="MalwareBazaar generic query route.",
         description="Send a generic query to MalwareBazaar.")
-def mb_query(payload: dict = Body(..., example={"query": "get_info", "hash": "…"})):
+def mb_query(payload: dict = Body(..., examples={"query": "get_info", "hash": "…"})):
     if "query" not in payload:
         raise HTTPException(status_code=400, detail="Missing 'query' field.")
     q = payload.pop("query")
@@ -73,7 +74,7 @@ def mb_query(payload: dict = Body(..., example={"query": "get_info", "hash": "�
     except Exception as e:
         _raise_http(e)
 
-@app.get("/malwarebazaar/info/{hash_value}", tags=["Malware Bazaar"], status_code=200,
+@router.get("/malwarebazaar/info/{hash_value}", tags=["Malware Bazaar"], status_code=200,
         summary="MalwareBazaar file info.",
         description="Retrieve detailed information about a file from MalwareBazaar using its hash.")
 def mb_get_info(hash_value: str = Path(...)):
@@ -83,7 +84,7 @@ def mb_get_info(hash_value: str = Path(...)):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/malwarebazaar/recent", tags=["Malware Bazaar"], status_code=200,
+@router.get("/malwarebazaar/recent", tags=["Malware Bazaar"], status_code=200,
           summary="MalwareBazaar recent samples.",
          description="Retrieve the most recent samples from MalwareBazaar, filtered by selector.")
 def mb_get_recent(selector: str = Query("time"), limit: int = Query(10, ge=1, le=1000)):
@@ -93,7 +94,7 @@ def mb_get_recent(selector: str = Query("time"), limit: int = Query(10, ge=1, le
     except Exception as e:
         _raise_http(e)
 
-@app.get("/malwarebazaar/tag/{tag}", tags=["Malware Bazaar"], status_code=200,
+@router.get("/malwarebazaar/tag/{tag}", tags=["Malware Bazaar"], status_code=200,
         summary="Malware Bazaar samples by tag.",
         description="Retrieve samples from MalwareBazaar associated with a specific tag.")
 def mb_get_taginfo(tag: str, limit: int = Query(100, ge=1, le=1000)):
@@ -103,7 +104,7 @@ def mb_get_taginfo(tag: str, limit: int = Query(100, ge=1, le=1000)):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/malwarebazaar/signature/{signature}", tags=["Malware Bazaar"], status_code=200,
+@router.get("/malwarebazaar/signature/{signature}", tags=["Malware Bazaar"], status_code=200,
         summary="Malware Bazaar samples by signature.",
         description="Retrieve samples from MalwareBazaar that match a given malware signature.")
 def mb_get_siginfo(signature: str, limit: int = Query(100, ge=1, le=1000)):
@@ -113,7 +114,7 @@ def mb_get_siginfo(signature: str, limit: int = Query(100, ge=1, le=1000)):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/malwarebazaar/filetype/{filetype}", tags=["Malware Bazaar"], status_code=200,
+@router.get("/malwarebazaar/filetype/{filetype}", tags=["Malware Bazaar"], status_code=200,
         summary="Malware Bazaar samples by file type",
         description="Retrieve samples from MalwareBazaar that match a specific file type.")
 def mb_get_taginfo(filetype: str, limit: int = Query(100, ge=1, le=1000)):
@@ -123,7 +124,7 @@ def mb_get_taginfo(filetype: str, limit: int = Query(100, ge=1, le=1000)):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/malwarebazaar/clamav/{signature}", tags=["Malware Bazaar"], status_code=200,
+@router.get("/malwarebazaar/clamav/{signature}", tags=["Malware Bazaar"], status_code=200,
         summary="Malware Bazaar samples by ClamAV signature",
         description="Retrieve samples from MalwareBazaar detected by a given ClamAV signature.")
 def mb_get_clamav(signature: str, limit: int = Query(100, ge=1, le=1000)):
@@ -133,7 +134,7 @@ def mb_get_clamav(signature: str, limit: int = Query(100, ge=1, le=1000)):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/malwarebazaar/imphash/{imphash}", tags=["Malware Bazaar"], status_code=200,
+@router.get("/malwarebazaar/imphash/{imphash}", tags=["Malware Bazaar"], status_code=200,
         summary="Malware Bazaar samples by imphash.",
         description="Retrieve samples from MalwareBazaar matching a given imphash.")
 def mb_get_imphash(imphash: str, limit: int = Query(100, ge=1, le=1000)):
@@ -143,7 +144,7 @@ def mb_get_imphash(imphash: str, limit: int = Query(100, ge=1, le=1000)):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/malwarebazaar/tlsh/{tlsh}", tags=["Malware Bazaar"], status_code=200,
+@router.get("/malwarebazaar/tlsh/{tlsh}", tags=["Malware Bazaar"], status_code=200,
         summary="Malware Bazaar samples by TLSH",
         description="Retrieve samples from MalwareBazaar matching a given TLSH hash.")
 def mb_get_tlsh(tlsh: str, limit: int = Query(100, ge=1, le=1000)):
@@ -153,37 +154,37 @@ def mb_get_tlsh(tlsh: str, limit: int = Query(100, ge=1, le=1000)):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/malwarebazaar/telfhash/{telfhash}", tags=["Malware Bazaar"], status_code=200,
+@router.get("/malwarebazaar/telfhash/{telfhash}", tags=["Malware Bazaar"], status_code=200,
         summary="Malware Bazaar samples by telfhash.",
         description="Retrieve samples from MalwareBazaar matching a given telfhash.")
-def mb_get_tlsh(telfhash: str, limit: int = Query(100, ge=1, le=1000)):
+def mb_get_telfhash(telfhash: str, limit: int = Query(100, ge=1, le=1000)):
     try:
         client = MBClient()
         return client.get_tlsh(telfhash, limit=limit)
     except Exception as e:
         _raise_http(e)
 
-@app.get("/malwarebazaar/gimphash/{gimphash}", tags=["Malware Bazaar"], status_code=200,
+@router.get("/malwarebazaar/gimphash/{gimphash}", tags=["Malware Bazaar"], status_code=200,
         summary="Malware Bazaar samples by gimphash.",
         description="Retrieve samples from MalwareBazaar matching a given gimphash.")
-def mb_get_tlsh(gimphash: str, limit: int = Query(100, ge=1, le=1000)):
+def mb_get_gimphash(gimphash: str, limit: int = Query(100, ge=1, le=1000)):
     try:
         client = MBClient()
         return client.get_tlsh(gimphash, limit=limit)
     except Exception as e:
         _raise_http(e)
 
-@app.get("/malwarebazaar/dhash_icon/{dhash_icon}", tags=["Malware Bazaar"], status_code=200,
+@router.get("/malwarebazaar/dhash_icon/{dhash_icon}", tags=["Malware Bazaar"], status_code=200,
         summary="Malware Bazaar samples by dhash icon.",
         description="Retrieve samples from MalwareBazaar with a matching dhash of the file's icon.")
-def mb_get_tlsh(dhash_icon: str, limit: int = Query(100, ge=1, le=1000)):
+def mb_get_dhash(dhash_icon: str, limit: int = Query(100, ge=1, le=1000)):
     try:
         client = MBClient()
         return client.get_tlsh(dhash_icon, limit=limit)
     except Exception as e:
         _raise_http(e)
 
-@app.get("/malwarebazaar/yarainfo/{yara_rule}", tags=["Malware Bazaar"], status_code=200,
+@router.get("/malwarebazaar/yarainfo/{yara_rule}", tags=["Malware Bazaar"], status_code=200,
         summary="Malware Bazaar samples by YARA rule.",
         description="Retrieve samples from MalwareBazaar that match a given YARA rule.")
 def mb_get_yarainfo(yara_rule: str, limit: int = Query(100, ge=1, le=1000)):
@@ -193,7 +194,7 @@ def mb_get_yarainfo(yara_rule: str, limit: int = Query(100, ge=1, le=1000)):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/malwarebazaar/certs/issuer/{issuer_cn}", tags=["Malware Bazaar"], status_code=200,
+@router.get("/malwarebazaar/certs/issuer/{issuer_cn}", tags=["Malware Bazaar"], status_code=200,
         summary="Malware Bazaar samples by certificate issuer.",
         description="Retrieve samples from MalwareBazaar signed with a certificate from a specific issuer CN.")
 def mb_get_issuerinfo(issuer_cn: str):
@@ -203,7 +204,7 @@ def mb_get_issuerinfo(issuer_cn: str):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/malwarebazaar/certs/subject/{subject_cn}", tags=["Malware Bazaar"], status_code=200,
+@router.get("/malwarebazaar/certs/subject/{subject_cn}", tags=["Malware Bazaar"], status_code=200,
         summary="Malware Bazaar samples by certificate subject.",
         description="Retrieve samples from MalwareBazaar signed with a certificate for a specific subject CN.")
 def mb_get_subjectinfo(subject_cn: str):
@@ -213,7 +214,7 @@ def mb_get_subjectinfo(subject_cn: str):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/malwarebazaar/certs/serial/{serial_number}", tags=["Malware Bazaar"], status_code=200,
+@router.get("/malwarebazaar/certs/serial/{serial_number}", tags=["Malware Bazaar"], status_code=200,
         summary="Malware Bazaar samples by certificate serial.",
         description="Retrieve samples from MalwareBazaar signed with a certificate that has the given serial number.")
 def mb_get_certificate(serial_number: str):
@@ -223,7 +224,7 @@ def mb_get_certificate(serial_number: str):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/malwarebazaar/certs/cscb", tags=["Malware Bazaar"], status_code=200,
+@router.get("/malwarebazaar/certs/cscb", tags=["Malware Bazaar"], status_code=200,
         summary="Malware Bazaar Code Signing Certificate Blocklist.",
         description="Retrieve the current Code Signing Certificate Blocklist (CSCB) from MalwareBazaar.")
 def mb_get_cscb():
@@ -233,7 +234,7 @@ def mb_get_cscb():
     except Exception as e:
         _raise_http(e)
 
-@app.post("/malwarebazaar/download/{sha256}", tags=["Malware Bazaar"], status_code=201,
+@router.post("/malwarebazaar/download/{sha256}", tags=["Malware Bazaar"], status_code=201,
         summary="Malware Bazaar download sample.",
         description="Download a malware sample from MalwareBazaar using its SHA-256 hash. Optionally specify a custom filename.")
 def mb_download_sample(
@@ -267,7 +268,7 @@ def mb_download_sample(
     except Exception as e:
         _raise_http(e)
 
-@app.post("/malwarebazaar/submit", tags=["Malware Bazaar"], status_code=201,
+@router.post("/malwarebazaar/submit", tags=["Malware Bazaar"], status_code=201,
         summary="Malware Bazaar submit a sample.",
         description="Submit a new malware sample to MalwareBazaar. Supports optional metadata such as tags, references, and context information.")
 async def mb_submit_sample(

@@ -7,16 +7,17 @@
 #                               [__|                                       for VirusTotal.
 
 from fastapi.responses import JSONResponse
-from fastapi import UploadFile, Form, HTTPException
+from fastapi import APIRouter, UploadFile, Form, HTTPException
 
 from pathlib import Path
 import shutil
 
 ###
 
-from sources.virustotal import VTClient, APIError
-from configs.config import settings
-from collector.main import app
+from collector.sources.virustotal import VTClient, APIError
+from collector.configs.config import settings
+
+router = APIRouter()
 
 ###################################################################################################
 
@@ -33,7 +34,7 @@ def _raise_http(err: Exception) -> None:
 ###################################################################################################
 
 # ================= Endpoints =================
-@app.get("/virustotal/file/{file_id}", tags=["VirustTotal"], status_code=200,
+@router.get("/virustotal/file/{file_id}", tags=["VirustTotal"], status_code=200,
         summary="VirusTotal file analysis by ID.",
         description="Retrieve VirusTotal analysis details of a specific file using its ID or hash.")
 def get_file_info(file_id: str):
@@ -44,7 +45,7 @@ def get_file_info(file_id: str):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/virustotal/url/", tags=["VirustTotal"], status_code=200,
+@router.get("/virustotal/url/", tags=["VirustTotal"], status_code=200,
         summary="VirusTotal URL analysis.",
         description="Retrieve the VirusTotal report for a given URL.")
 def get_url_info(url: str):
@@ -55,7 +56,7 @@ def get_url_info(url: str):
     except Exception as e:
         _raise_http(e)
 
-@app.post("/virustotal/scan/file", tags=["VirustTotal"], status_code=200,
+@router.post("/virustotal/scan/file", tags=["VirustTotal"], status_code=200,
         summary="VirusTotal file scan.",
         description="Upload a file to VirusTotal for scanning. Returns the analysis result, either immediately or after completion if wait is enabled.")
 async def scan_file(file: UploadFile, wait: bool = Form(True)):
@@ -77,7 +78,7 @@ async def scan_file(file: UploadFile, wait: bool = Form(True)):
         if temp_path.exists():
             temp_path.unlink(missing_ok=True)
 
-@app.post("/virustotal/scan/url", tags=["VirustTotal"], status_code=200,
+@router.post("/virustotal/scan/url", tags=["VirustTotal"], status_code=200,
         summary="VirusTotal URL scan.",
         description="Submit a URL to VirusTotal for scanning. Returns the analysis status and results, depending on the wait option.")
 def scan_url(url: str = Form(...), wait: bool = Form(True)):
@@ -88,7 +89,7 @@ def scan_url(url: str = Form(...), wait: bool = Form(True)):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/virustotal/download/{file_hash}", tags=["VirustTotal"], status_code=201,
+@router.get("/virustotal/download/{file_hash}", tags=["VirustTotal"], status_code=201,
         summary="VirusTotal download file.",
         description="Download a file from VirusTotal using its hash and save it locally.")
 def download_file(file_hash: str):

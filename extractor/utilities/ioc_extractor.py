@@ -174,11 +174,11 @@ def to_sorted_lists(iocs: Dict[str, set[str]]) -> Dict[str, List[str]]:
     sorted_iocs = {k: sorted(v) for k, v in iocs.items()}
     logging.debug(
         "Sorted IOC sizes: domains=%d, urls=%d, emails=%d, ips=%d, registry=%d",
-        len(sorted_iocs.get("domains", [])),
-        len(sorted_iocs.get("urls", [])),
         len(sorted_iocs.get("emails", [])),
-        len(sorted_iocs.get("ips", [])),
+        len(sorted_iocs.get("domains", [])),
         len(sorted_iocs.get("registry", [])),
+        len(sorted_iocs.get("urls", [])),
+        len(sorted_iocs.get("ips", []))
     )
     return sorted_iocs
 

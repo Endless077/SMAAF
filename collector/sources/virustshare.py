@@ -31,7 +31,7 @@ class VirusShareError(RuntimeError):
 
 API_BASE = "https://virusshare.com/apiv2"
 
-from configs.config import settings
+from collector.configs.config import settings
 
 ###
 

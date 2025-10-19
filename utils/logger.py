@@ -9,8 +9,8 @@
 import os
 import sys
 import logging
-from pathlib import Path
 from typing import Union
+from pathlib import Path
 from datetime import datetime
 
 ###################################################################################################

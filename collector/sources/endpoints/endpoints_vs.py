@@ -7,13 +7,14 @@
 #                               [__|                                       for VirusShare.
 
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, Path, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 
 ###
 
-from sources.virustshare import VSClient, VirusShareError
-from configs.config import settings
-from collector.main import app
+from collector.sources.virustshare import VSClient, VirusShareError
+from collector.configs.config import settings
+
+router = APIRouter()
 
 ###################################################################################################
 
@@ -44,7 +45,7 @@ def _raise_http(err: Exception) -> None:
 ###################################################################################################
 
 # ================= Endpoints =================
-@app.get("/virusshare/file/{hash_value}", tags=["VirusShare"], status_code=200,
+@router.get("/virusshare/file/{hash_value}", tags=["VirusShare"], status_code=200,
         summary="VirusShare file report",
         description="Retrieve detailed VirusShare report for a file using its hash value.")
 def vs_file_report(hash_value: str = Path(...)):
@@ -55,7 +56,7 @@ def vs_file_report(hash_value: str = Path(...)):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/virusshare/quick/{hash_value}", tags=["VirusShare"], status_code=200,
+@router.get("/virusshare/quick/{hash_value}", tags=["VirusShare"], status_code=200,
         summary="VirusShare quick file status.",
         description="Get a quick status check from VirusShare for a file using its hash value.")
 def vs_quick_status(hash_value: str = Path(...)):
@@ -66,7 +67,7 @@ def vs_quick_status(hash_value: str = Path(...)):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/virusshare/source/{sha256}", tags=["VirusShare"], status_code=200,
+@router.get("/virusshare/source/{sha256}", tags=["VirusShare"], status_code=200,
         summary="VirusShare source info.",
         description="Retrieve source information from VirusShare for a file using its SHA-256 hash.")
 def vs_source_info(sha256: str = Path(...)):
@@ -77,7 +78,7 @@ def vs_source_info(sha256: str = Path(...)):
     except Exception as e:
         _raise_http(e)
 
-@app.get("/virusshare/download/{hash_value}", tags=["VirusShare"], status_code=201,
+@router.get("/virusshare/download/{hash_value}", tags=["VirusShare"], status_code=201,
           summary="VirusShare download sample.",
          description="Download a malware sample from VirusShare using its hash value. Optionally specify a custom filename. The sample is saved locally.")
 def vs_download_sample(

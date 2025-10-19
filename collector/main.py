@@ -24,14 +24,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.encoders import jsonable_encoder
 
 # Providers Endpoints
-from sources.endpoints.endpoints_vt import *
-from sources.endpoints.endpoints_vs import *
-from sources.endpoints.endpoints_mb import *
+from collector.sources.endpoints import endpoints_vt
+from collector.sources.endpoints import endpoints_vs
+from collector.sources.endpoints import endpoints_mb
 
 # Project Stuffs
-from models import *
-from storage import *
-from utilities import *
+from collector.models import *
+from collector.storage import *
+from collector.utilities import *
+from collector.configs.config import *
+
+init_logging(file=False, level=logging.INFO)
 
 ###################################################################################################
 
@@ -69,6 +72,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
+
+app.include_router(endpoints_vt.router)
+app.include_router(endpoints_vs.router)
+app.include_router(endpoints_mb.router)
 
 ###################################################################################################
 

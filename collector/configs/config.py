@@ -19,7 +19,9 @@ import os
 from pathlib import Path
 from datetime import datetime
 from typing import Literal, Dict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+Provider = Literal["VirusShare", "VirusTotal", "MalwareBazaar"]
 
 from utils.logger import setup_logging
 
@@ -35,7 +37,6 @@ def init_logging(file=None, level=None):
             - False/None -> force console only.
             - True  -> file with timestamp (.log).
             - str   -> custom file path (absolute path).
-            
         level: logging level (default: INFO)
     """
     log_path_str = None
@@ -69,18 +70,18 @@ class Settings:
     VS_API_KEY: str = os.getenv("VS_API_KEY", "")
     MB_API_KEY: str = os.getenv("MB_API_KEY", "")
 
-    PROVIDERS = Literal["VirusTotal", "VirusTotal", "MalwareBazaar"]
-    PROVIDER_DIR_MAP: Dict[PROVIDERS, str] = {
+    # Providers and their storage directories
+    PROVIDER_DIR_MAP: Dict[str, str] = field(default_factory=lambda: {
         "VirusShare": "virusshare",
         "VirusTotal": "virustotal",
-        "MalwareBazaar": "malwarebazaar"
-    }
+        "MalwareBazaar": "malwarebazaar",
+    })
 
+    # Networking
     TIMEOUT: int = 300
 
-    # Project Directoires
+    # Project Directories
     BASE_DIR: Path = Path(os.getenv("SMAF_BASE_DIR", Path.cwd()))
-    
     LOGS_DIR: Path = BASE_DIR / os.getenv("SMAF_LOG_DIR", "logs")
     SAMPLES_DIR: Path = BASE_DIR / os.getenv("SMAF_STORAGE_DIR", "samples")
     DOWNLOAD_DIR: Path = BASE_DIR / os.getenv("SMAF_DOWNLOAD_DIR", "download")
@@ -88,7 +89,7 @@ class Settings:
 # Global settings object
 settings = Settings()
 
-# Setup directories
+# Ensure directories exist
 settings.LOGS_DIR.mkdir(parents=True, exist_ok=True)
 settings.SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
 settings.DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)

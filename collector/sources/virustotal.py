@@ -25,7 +25,7 @@ and community contributions to provide file, URL, domain, and IP reputation.
 import vt
 from vt.error import APIError
 
-from configs.config import settings
+from collector.configs.config import settings
 
 ###
 

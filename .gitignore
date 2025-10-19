@@ -2,10 +2,11 @@
 .venv
 
 # Project Configuration
+logs
 config
 settings
 
-# Malware Storage
+# Malwares Storage
 download
 samples
 
