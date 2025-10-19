@@ -21,7 +21,7 @@ from datetime import datetime
 from typing import Literal, Dict
 from dataclasses import dataclass, field
 
-Provider = Literal["VirusShare", "VirusTotal", "MalwareBazaar"]
+PROVIDERS = Literal["VirusTotal", "VirusShare", "MalwareBazaar"]
 
 from utils.logger import setup_logging
 

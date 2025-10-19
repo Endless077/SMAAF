@@ -16,8 +16,8 @@ from datetime import datetime, timezone
 # Server
 import uvicorn
 
-from fastapi import FastAPI, HTTPException, Request, Response, status
-from fastapi import File, Form, Query, Body, UploadFile
+from fastapi import FastAPI, HTTPException
+from fastapi import File, Form, Query, UploadFile
 
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,7 +44,7 @@ init_logging(file=False, level=logging.INFO)
 TAG = "FastAPI"
 
 app = FastAPI(title="FastAPI - Malware Collector",
-              summary="Some easy API for a Malware Collector.",
+              summary="Some easy APIs for a Malware Collector.",
               description="A simple and fast api suite for a malware collector (Static Malware Analysis).",
               contact={
                   "email": "antonio.garofalo125@gmail.com",
@@ -135,7 +135,7 @@ async def upload(
         raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
 
 @app.get("/metadata/search", response_model=SearchResponse, status_code=200, tags=["Metadata"],
-    summary="Search metadata by filename or hash, with optional filters (or list all)",
+    summary="Search metadata by filename or hash, with optional filters (or list all).",
     description=(
         "This query applies optional filters if provided by the user (all filters are AND-combined).\n"
         "If `query` is provided and looks like a hash, match by hash; otherwise match exact filename.\n"
@@ -174,16 +174,15 @@ async def metadata_search(
 
     return SearchResponse(count=len(filtered), results=filtered)
 
-app.post("/metadata/update", response_model=UpdateResponse,  status_code=204, tags=["Metadata"],
+@app.post("/metadata/update", response_model=UpdateResponse, status_code=201, tags=["Metadata"],
     summary="Update metadata from external providers.",
     description=(
-        "Update the local metadata of a stored sample by querying an external provider API "
-        "(e.g., VirusTotal, VirusShare, MalwareBazaar, ). "
+        "Update the local metadata of a stored sample by querying an external provider API. "
         "The provider's response is stored inside the sample's `metadata.external_providers` section. "
         "Returns an object indicating the update status, the sample identifier, and the provider used."
     ), 
 )
-async def metadata_update(sample: str, provider: str):
+async def metadata_update(sample: str, provider: PROVIDERS):
     results = search_metadata(sample)
     if not results:
         raise HTTPException(status_code=404, detail="Sample not found.")
@@ -236,7 +235,7 @@ async def metadata_update(sample: str, provider: str):
             "Each sample is hashed, stored in the *samples* folder, and a JSON metadata file is generated. "
             "The response includes processed items, errors, and overall status."
         ))
-async def providers_extract(sample: Optional[str] = None, provider: Optional[str] = None): 
+async def providers_extract(sample: str, provider: PROVIDERS): 
     try:
         result_dict = extract_provider(sample=sample, provider=provider)
         return ExtractResponse(**result_dict)
@@ -247,8 +246,6 @@ async def providers_extract(sample: Optional[str] = None, provider: Optional[str
         raise HTTPException(status_code=403, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    except OSError as e:
-        raise HTTPException(status_code=500, detail="Internal storage error") from e
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal server error") from e
 
@@ -260,7 +257,7 @@ async def providers_extract(sample: Optional[str] = None, provider: Optional[str
             "- If `sample` is provided, only files containing that string are returned.\n"
             "- If no provider is specified, all providers are scanned."
         ))
-async def providers_samples(sample: Optional[str] = None, provider: Optional[str] = None):
+async def providers_samples(sample: str, provider: PROVIDERS):
     data = samples_provider(sample=sample, provider=provider)
 
     if not data["results"] or not data["success"]:
@@ -285,7 +282,7 @@ async def providers_samples(sample: Optional[str] = None, provider: Optional[str
             "- `hash`: Hash of the sample to look up.\n"
             "- `provider`: The provider to query."
         ))
-async def providers_query(hash: Optional[str] = None, provider: Optional[str] = None):
+async def providers_query(hash: str, provider: PROVIDERS):
     try:
         data = query_provider(sample=hash, provider=provider)
 
@@ -323,7 +320,7 @@ def startup():
 
 def shutdown(signum, frame):
     try:
-        logging.info("Shutdown FastAPI server.")
+        logging.info("Shutdown FastAPI Server.")
         sys.exit(0)
     except Exception as e:
         logging.info(f"An unexpected error occurred: {e}")
