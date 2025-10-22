@@ -137,8 +137,8 @@ async def upload(
 @app.get("/metadata/search", response_model=SearchResponse, status_code=200, tags=["Metadata"],
     summary="Search metadata by filename or hash, with optional filters (or list all).",
     description=(
-        "This query applies optional filters if provided by the user (all filters are AND-combined).\n"
-        "If `query` is provided and looks like a hash, match by hash; otherwise match exact filename.\n"
+        "This query applies optional filters if provided by the user (all filters are AND-combined).\n\n"
+        "If `query` is provided and looks like a hash, match by hash; otherwise match exact filename.\n\n"
         "If `query` is omitted, process a big get query from the samples directory with all metadata."
     ),
 )
@@ -177,12 +177,12 @@ async def metadata_search(
 @app.post("/metadata/update", response_model=UpdateResponse, status_code=201, tags=["Metadata"],
     summary="Update metadata from external providers.",
     description=(
-        "Update the local metadata of a stored sample by querying an external provider API. "
+        "Update the local metadata of a stored sample by querying an external provider API.\n\n"
         "The provider's response is stored inside the sample's `metadata.external_providers` section. "
         "Returns an object indicating the update status, the sample identifier, and the provider used."
     ), 
 )
-async def metadata_update(sample: str, provider: PROVIDERS):
+async def metadata_update(sample: str, provider: Providers):
     results = search_metadata(sample)
     if not results:
         raise HTTPException(status_code=404, detail="Sample not found.")
@@ -192,52 +192,40 @@ async def metadata_update(sample: str, provider: PROVIDERS):
     if not metadata_path or not os.path.exists(metadata_path):
         raise HTTPException(status_code=500, detail="Metadata file not found on disk.")
 
-    provider_key = provider.strip().lower()
-    if provider not in Settings.PROVIDERS:
-        raise HTTPException(status_code=400, detail=f"Provider '{provider}' not supported.")
+    provider_key = provider.value
 
     try:
-        provider_response = query_provider(sample, provider_key)
+        provider_response = await query_provider(sample, provider_key)
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Provider '{provider}' call failed: {e!s}")
+        raise HTTPException(status_code=502, detail=f"Provider '{provider.value}' call failed: {e!s}")
 
     metadata_file = read_json(metadata_path)
-    if not isinstance(metadata_file, dict):
-        raise HTTPException(status_code=500, detail="Invalid metadata JSON")
-
-    metadata = metadata_file.get("metadata")
-    if not isinstance(metadata, dict):
-        raise HTTPException(status_code=500, detail="'metadata' section missing or invalid")
-
-    external_providers = metadata.get("external_providers")
-    if external_providers is None:
-        external_providers = {}
-    elif not isinstance(external_providers, dict):
-        raise HTTPException(status_code=500, detail="'external_providers' must be an object")
+    metadata = metadata_file.get("metadata", {})
+    external_providers = metadata.get("external_providers", {})
 
     external_providers[provider_key] = jsonable_encoder(provider_response)
-
     metadata["external_providers"] = external_providers
     metadata_file["metadata"] = metadata
+
     write_json(metadata_path, metadata_file)
 
     return UpdateResponse(
         status="updated",
         sample=sample,
-        provider=provider_key,
+        provider=provider.value,
         update=external_providers[provider_key],
     )
 
 @app.post("/providers/extract", response_model=ExtractResponse, status_code=200, tags=["Providers"],
         summary="Extract and index samples from a provider.",
         description=(
-            "Process one or more files from a provider directory (including password-protected ZIPs). "
+            "Process one or more files from a provider directory (including password-protected ZIPs).\n\n"
             "Each sample is hashed, stored in the *samples* folder, and a JSON metadata file is generated. "
             "The response includes processed items, errors, and overall status."
         ))
-async def providers_extract(sample: str, provider: PROVIDERS): 
+async def providers_extract(sample: Optional[str] = None, provider: Optional[Providers] = None): 
     try:
-        result_dict = extract_provider(sample=sample, provider=provider)
+        result_dict = extract_provider(sample=sample, provider=provider.value)
         return ExtractResponse(**result_dict)
 
     except FileNotFoundError as e:
@@ -257,19 +245,19 @@ async def providers_extract(sample: str, provider: PROVIDERS):
             "- If `sample` is provided, only files containing that string are returned.\n"
             "- If no provider is specified, all providers are scanned."
         ))
-async def providers_samples(sample: str, provider: PROVIDERS):
-    data = samples_provider(sample=sample, provider=provider)
+async def providers_samples(sample: Optional[str] = None, provider: Optional[Providers] = None):
+    data = samples_provider(sample=sample,  provider=provider.value if provider else None)
 
-    if not data["results"] or not data["success"]:
+    if not data.get("results") or not data.get("success"):
         if provider:
             raise HTTPException(
                 status_code=404,
-                detail=f"No samples found in provider: {provider} with filter: {sample}.",
+                detail=f"No samples found in provider: {provider.value} with filter: {sample or 'Any'}.",
             )
         else:
             raise HTTPException(
                 status_code=404,
-                detail=f"No samples found in any provider with filter: {sample}.",
+                detail=f"No samples found in any provider with filter: {sample or 'Any'}.",
             )
 
     return JSONResponse(content=data)
@@ -282,10 +270,9 @@ async def providers_samples(sample: str, provider: PROVIDERS):
             "- `hash`: Hash of the sample to look up.\n"
             "- `provider`: The provider to query."
         ))
-async def providers_query(hash: str, provider: PROVIDERS):
+async def providers_query(hash: str, provider: Providers):
     try:
-        data = query_provider(sample=hash, provider=provider)
-
+        data = await query_provider(sample=hash, provider=provider.value)
         return JSONResponse(content=data)
     except Exception as e:
         raise HTTPException(

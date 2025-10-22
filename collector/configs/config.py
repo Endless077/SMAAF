@@ -16,16 +16,24 @@ this ensures secrets are not hardcoded in the source.
 import json
 import os
 
+from enum import Enum
+from typing import Dict
 from pathlib import Path
 from datetime import datetime
-from typing import Literal, Dict
-from dataclasses import dataclass, field
 
-PROVIDERS = Literal["VirusTotal", "VirusShare", "MalwareBazaar"]
+from dataclasses import dataclass, field
 
 from utils.logger import setup_logging
 
 ###################################################################################################
+
+class Providers(str, Enum):
+    virustotal = "VirusTotal"
+    virusshare = "VirusShare"
+    malwarebazaar = "MalwareBazaar"
+
+###################################################################################################
+
 
 # Init Logging
 def init_logging(file=None, level=None):
@@ -72,8 +80,8 @@ class Settings:
 
     # Providers and their storage directories
     PROVIDER_DIR_MAP: Dict[str, str] = field(default_factory=lambda: {
-        "VirusShare": "virusshare",
         "VirusTotal": "virustotal",
+        "VirusShare": "virusshare",
         "MalwareBazaar": "malwarebazaar",
     })
 
@@ -86,6 +94,10 @@ class Settings:
     SAMPLES_DIR: Path = BASE_DIR / os.getenv("SMAF_STORAGE_DIR", "samples")
     DOWNLOAD_DIR: Path = BASE_DIR / os.getenv("SMAF_DOWNLOAD_DIR", "download")
 
+    VIRUSTOTAL_DL_DIR: Path = BASE_DIR / os.getenv("VT_DOWNLOAD_DIR", "download/virustotal")
+    VIRUSSHARE_DL_DIR: Path = BASE_DIR / os.getenv("VS_DOWNLOAD_DIR", "download/virusshare")
+    MALWAREBAZAAR_DL_DIR: Path = BASE_DIR / os.getenv("MB_DOWNLOAD_DIR", "download/malwarebazaar")
+
 # Global settings object
 settings = Settings()
 
@@ -93,6 +105,13 @@ settings = Settings()
 settings.LOGS_DIR.mkdir(parents=True, exist_ok=True)
 settings.SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
 settings.DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+settings.VIRUSTOTAL_DL_DIR.mkdir(parents=True, exist_ok=True)
+settings.VIRUSSHARE_DL_DIR.mkdir(parents=True, exist_ok=True)
+settings.MALWAREBAZAAR_DL_DIR.mkdir(parents=True, exist_ok=True)
+
+os.chmod(settings.LOGS_DIR, 0o770)
+os.chmod(settings.SAMPLES_DIR, 0o770)
+os.chmod(settings.DOWNLOAD_DIR, 0o770)
 
 ###################################################################################################
 

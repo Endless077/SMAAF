@@ -128,12 +128,12 @@ def extract_provider(sample: str | None = None, provider: str | None = None) -> 
     }
 
 # ================= Provider Queries =================
-def query_provider(sample: Optional[str] = None, provider: Optional[str] = None) -> dict:
+async def query_provider(sample: Optional[str] = None, provider: Optional[str] = None) -> dict:
     """Query external provider APIs for sample reports."""
     try:
         if provider == "VirusTotal":
             client = VTClient()
-            data = client.get_file_info(sample)
+            data = await client.get_file_info(sample)
         elif provider == "VirusShare":
             client = VSClient()
             data = client.file_report(sample)
@@ -146,6 +146,8 @@ def query_provider(sample: Optional[str] = None, provider: Optional[str] = None)
         return {"results": data, "provider": provider, "sample": sample, "success": True}
     except Exception as e:
         raise e
+    finally:
+        client.close()
     
 # ================= Provider Samples =================
 def samples_provider(sample: str = None, provider: str = None) -> dict:
@@ -153,11 +155,15 @@ def samples_provider(sample: str = None, provider: str = None) -> dict:
     results = []
 
     if provider:
-        # Search only in the specified provider directory
-        dirpath = settings.PROVIDER_DIR_MAP[provider]
-        if not dirpath.exists():
+        # Compose absolute path for selected provider
+        folder = settings.PROVIDER_DIR_MAP.get(provider)
+        if not folder:
             return {"results": [], "success": False}
 
+        dirpath = settings.DOWNLOAD_DIR / folder
+        if not dirpath.exists():
+            return {"results": [], "success": False}
+        
         files = [
             f.name
             for f in dirpath.iterdir()
@@ -165,7 +171,6 @@ def samples_provider(sample: str = None, provider: str = None) -> dict:
         ]
         if files:
             results.append({"provider": provider, "sample": sample, "files": files})
-
     else:
         # Iterate across all configured providers
         for prov, folder in settings.PROVIDER_DIR_MAP.items():
@@ -178,7 +183,7 @@ def samples_provider(sample: str = None, provider: str = None) -> dict:
                 if f.is_file() and (not sample or sample in f.name)
             ]
             if files:
-                results.append({"provider": prov, "sample": sample, "files": files})
+                results.append({"provider": prov, "sample": sample or "Any", "files": files})
 
     return {"results": results, "success": bool(results)}
 

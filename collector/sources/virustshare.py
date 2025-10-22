@@ -89,7 +89,7 @@ class VSClient:
 
     # Close underlying resources
     def close(self) -> None:
-        self._session.close()
+        pass
             
     # ================= Helpers =================
     def _get(self, endpoint: str, *, hash_value: str, stream: bool = False) -> requests.Response:

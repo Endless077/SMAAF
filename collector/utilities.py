@@ -70,7 +70,7 @@ def write_file(path: str, data: bytes) -> None:
 def write_json(path: str, obj: dict) -> None:
     """Write a JSON object to a file with formatting."""
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(obj, f, indent=2, ensure_ascii=False, sort_keys=True)
+        json.dump(obj, f, indent=2, ensure_ascii=False)
 
 ###################################################################################################
 

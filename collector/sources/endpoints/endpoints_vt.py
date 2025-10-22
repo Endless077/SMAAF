@@ -37,10 +37,11 @@ def _raise_http(err: Exception) -> None:
 @router.get("/virustotal/file/{file_id}", tags=["VirustTotal"], status_code=200,
         summary="VirusTotal file analysis by ID.",
         description="Retrieve VirusTotal analysis details of a specific file using its ID or hash.")
-def get_file_info(file_id: str):
+async def get_file_info(file_id: str):
     try:
-        with VTClient() as vt:
-            info = vt.get_file_info(file_id)
+        vt = VTClient()
+        info = await vt.get_file_info(file_id)
+        await vt.close()
         return JSONResponse(content=info)
     except Exception as e:
         _raise_http(e)
@@ -48,10 +49,11 @@ def get_file_info(file_id: str):
 @router.get("/virustotal/url/", tags=["VirustTotal"], status_code=200,
         summary="VirusTotal URL analysis.",
         description="Retrieve the VirusTotal report for a given URL.")
-def get_url_info(url: str):
+async def get_url_info(url: str):
     try:
-        with VTClient() as vt:
-            info = vt.get_url_info(url)
+        vt = VTClient()
+        info = await vt.get_url_info(url)
+        await vt.close()
         return JSONResponse(content=info)
     except Exception as e:
         _raise_http(e)
@@ -66,12 +68,11 @@ async def scan_file(file: UploadFile, wait: bool = Form(True)):
         with temp_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        with VTClient() as vt:
-            analysis = vt.scan_file(temp_path, wait=wait)
+        vt = VTClient()
+        analysis = await vt.scan_file(temp_path, wait=wait)
+        await vt.close()
 
         return JSONResponse(content=analysis)
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         _raise_http(e)
     finally:
@@ -81,10 +82,11 @@ async def scan_file(file: UploadFile, wait: bool = Form(True)):
 @router.post("/virustotal/scan/url", tags=["VirustTotal"], status_code=200,
         summary="VirusTotal URL scan.",
         description="Submit a URL to VirusTotal for scanning. Returns the analysis status and results, depending on the wait option.")
-def scan_url(url: str = Form(...), wait: bool = Form(True)):
+async def scan_url(url: str = Form(...), wait: bool = Form(True)):
     try:
-        with VTClient() as vt:
-            analysis = vt.scan_url(url, wait=wait)
+        vt = VTClient()
+        analysis = await vt.scan_url(url, wait=wait)
+        await vt.close()
         return JSONResponse(content=analysis)
     except Exception as e:
         _raise_http(e)
@@ -92,13 +94,15 @@ def scan_url(url: str = Form(...), wait: bool = Form(True)):
 @router.get("/virustotal/download/{file_hash}", tags=["VirustTotal"], status_code=201,
         summary="VirusTotal download file.",
         description="Download a file from VirusTotal using its hash and save it locally.")
-def download_file(file_hash: str):
+async def download_file(file_hash: str):
     dest_dir = settings.DOWNLOAD_DIR / "VirusTotal"
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        with VTClient() as vt:
-            out_path = vt.download_file(file_hash, dest_dir=dest_dir)
+        vt = VTClient()
+        out_path = await vt.download_file(file_hash, dest_dir=dest_dir)
+        await vt.close()
+
         return JSONResponse(
             content={
                 "success": True,
