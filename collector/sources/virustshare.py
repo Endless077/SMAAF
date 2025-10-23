@@ -131,7 +131,9 @@ class VSClient:
 
     # ================= File Report =================
     def file_report(self, hash_value: str) -> Dict[str, Any]:
-        """Full structured information retrive about a sample (JSON)."""
+        """
+        Full structured information retrive about a sample (JSON).
+        """
         r = self._get("/file", hash_value=hash_value)
         if r.status_code == 200:
             try:
@@ -142,7 +144,9 @@ class VSClient:
 
     # ================= Quick Status =================
     def quick_status(self, hash_value: str) -> int:
-        """Lightweight existence/classification check, returns integer code."""
+        """
+        Lightweight existence/classification check, returns integer code.
+        """
         r = self._get("/quick", hash_value=hash_value)
         if r.status_code == 200:
             try:
@@ -154,7 +158,9 @@ class VSClient:
 
     # ================= Source Info =================
     def source_info(self, hash_value: str) -> Dict[str, Any]:
-        """Retrieve provenance/source data for a sample."""
+        """
+        Retrieve provenance/source data for a sample.
+        """
         r = self._get("/source", hash_value=hash_value)
         if r.status_code == 200:
             try:
@@ -171,11 +177,13 @@ class VSClient:
         dest_dir: str | Path = None,
         filename: Optional[str] = None
     ) -> Path:
-        """Download the sample as a ZIP (stream to disk to avoid large memory usage)."""
+        """
+        Download the sample as a ZIP.
+        """
         # Pre-check sample classification to avoid benign downloads
         file_info = self.file_report(hash_value)
         if file_info.get("response") == 2:
-            raise VirusShareError("Sample classified as benign — download not allowed.")
+            raise VirusShareError("Sample classified as benign - download not allowed.")
 
         # Ensure destination directory exists
         dest = Path(dest_dir or settings.DOWNLOAD_DIR)

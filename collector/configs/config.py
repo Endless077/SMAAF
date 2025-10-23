@@ -94,9 +94,9 @@ class Settings:
     SAMPLES_DIR: Path = BASE_DIR / os.getenv("SMAF_STORAGE_DIR", "samples")
     DOWNLOAD_DIR: Path = BASE_DIR / os.getenv("SMAF_DOWNLOAD_DIR", "download")
 
-    VIRUSTOTAL_DL_DIR: Path = BASE_DIR / os.getenv("VT_DOWNLOAD_DIR", "download/virustotal")
-    VIRUSSHARE_DL_DIR: Path = BASE_DIR / os.getenv("VS_DOWNLOAD_DIR", "download/virusshare")
-    MALWAREBAZAAR_DL_DIR: Path = BASE_DIR / os.getenv("MB_DOWNLOAD_DIR", "download/malwarebazaar")
+    VIRUSTOTAL_DOWNLOAD_DIR: Path = BASE_DIR / os.getenv("VT_DOWNLOAD_DIR", "download/virustotal")
+    VIRUSSHARE_DOWNLOAD_DIR: Path = BASE_DIR / os.getenv("VS_DOWNLOAD_DIR", "download/virusshare")
+    MALWAREBAZAAR_DOWNLOAD_DIR: Path = BASE_DIR / os.getenv("MB_DOWNLOAD_DIR", "download/malwarebazaar")
 
 # Global settings object
 settings = Settings()
@@ -105,13 +105,16 @@ settings = Settings()
 settings.LOGS_DIR.mkdir(parents=True, exist_ok=True)
 settings.SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
 settings.DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
-settings.VIRUSTOTAL_DL_DIR.mkdir(parents=True, exist_ok=True)
-settings.VIRUSSHARE_DL_DIR.mkdir(parents=True, exist_ok=True)
-settings.MALWAREBAZAAR_DL_DIR.mkdir(parents=True, exist_ok=True)
+settings.VIRUSTOTAL_DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+settings.VIRUSSHARE_DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+settings.MALWAREBAZAAR_DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 os.chmod(settings.LOGS_DIR, 0o770)
 os.chmod(settings.SAMPLES_DIR, 0o770)
 os.chmod(settings.DOWNLOAD_DIR, 0o770)
+os.chmod(settings.VIRUSTOTAL_DOWNLOAD_DIR, 0o770)
+os.chmod(settings.VIRUSSHARE_DOWNLOAD_DIR, 0o770)
+os.chmod(settings.MALWAREBAZAAR_DOWNLOAD_DIR, 0o770)
 
 ###################################################################################################
 

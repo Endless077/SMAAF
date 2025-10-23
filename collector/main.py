@@ -223,7 +223,7 @@ async def metadata_update(sample: str, provider: Providers):
             "Each sample is hashed, stored in the *samples* folder, and a JSON metadata file is generated. "
             "The response includes processed items, errors, and overall status."
         ))
-async def providers_extract(sample: Optional[str] = None, provider: Optional[Providers] = None): 
+async def providers_extract(sample: str, provider: Providers): 
     try:
         result_dict = extract_provider(sample=sample, provider=provider.value)
         return ExtractResponse(**result_dict)
@@ -252,12 +252,12 @@ async def providers_samples(sample: Optional[str] = None, provider: Optional[Pro
         if provider:
             raise HTTPException(
                 status_code=404,
-                detail=f"No samples found in provider: {provider.value} with filter: {sample or 'Any'}.",
+                detail=f"No samples found in provider: {provider.value} with filter: {sample or 'any'}.",
             )
         else:
             raise HTTPException(
                 status_code=404,
-                detail=f"No samples found in any provider with filter: {sample or 'Any'}.",
+                detail=f"No samples found in any provider with filter: {sample or 'any'}.",
             )
 
     return JSONResponse(content=data)

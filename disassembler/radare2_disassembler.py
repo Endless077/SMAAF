@@ -22,14 +22,7 @@ import r2pipe
 
 from utils.logger import setup_logging
 
-from utilities import (
-    convert_hex,
-    slugify,
-    relative_path,
-    write_text,
-    write_json,
-    make_radare_dirs,
-)
+from utilities import *
 
 ###################################################################################################
 
@@ -105,7 +98,6 @@ def _sections_focus(sections: List[Dict[str, Any]]) -> Dict[str, Any]:
             }
     return focus
 
-
 def _get_function_disasm_text(r2, addr: int) -> str:
     """Assembly text of the function via 'pdf' (print disasm function)."""
     try:
@@ -113,7 +105,6 @@ def _get_function_disasm_text(r2, addr: int) -> str:
     except Exception as e:
         logging.warning("Failed 'pdf' at 0x%x: %s", addr if isinstance(addr, int) else -1, e)
         return ""
-
 
 def _decompile_text(r2, addr: int) -> Optional[str]:
     """Try to get C-like pseudocode using pdc (r2ghidra-dec) or pdd (r2dec)."""
