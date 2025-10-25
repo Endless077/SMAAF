@@ -1,0 +1,2 @@
+0x102020: PUSH qword ptr [0x00108e88]
+0x102026: JMP qword ptr [0x00108e90]

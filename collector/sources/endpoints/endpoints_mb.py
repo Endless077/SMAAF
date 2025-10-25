@@ -6,17 +6,24 @@
 #    |________|[___||__]'.__.;__]| ;.__/  '.__.' [___][___||__]\__/[\__) ) 
 #                               [__|                                       for MalwareBazaar.
 
-import json
+# ───────────────────────────────────────────────────────────────
+# Third-party libraries
 import requests
-from pathlib import Path as SysPath
+from fastapi import APIRouter, Body, File, Form, HTTPException, Path, Query, UploadFile
 from fastapi.responses import JSONResponse
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Path, Query, Body
 
-###
-
-from collector.sources.malwarebazaar import MBClient, MalwareBazaarError
+# ───────────────────────────────────────────────────────────────
+# Local application imports
 from collector.configs.config import settings
+from collector.sources.malwarebazaar import MBClient, MalwareBazaarError
 
+# ───────────────────────────────────────────────────────────────
+# Standard library
+import json
+from pathlib import Path as SysPath
+
+# ───────────────────────────────────────────────────────────────
+# Router initialization
 router = APIRouter()
 
 ###################################################################################################

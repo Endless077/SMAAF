@@ -6,14 +6,18 @@
 #    |________|[___||__]'.__.;__]| ;.__/  '.__.' [___][___||__]\__/[\__) ) 
 #                               [__|                                       for VirusShare.
 
-from fastapi.responses import JSONResponse
+# ───────────────────────────────────────────────────────────────
+# Third-party libraries
 from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi.responses import JSONResponse
 
-###
-
-from collector.sources.virustshare import VSClient, VirusShareError
+# ───────────────────────────────────────────────────────────────
+# Local application imports
 from collector.configs.config import settings
+from collector.sources.virustshare import VSClient, VirusShareError
 
+# ───────────────────────────────────────────────────────────────
+# Router initialization
 router = APIRouter()
 
 ###################################################################################################

@@ -1,0 +1,2 @@
+0x102450: ENDBR64
+0x102454: JMP qword ptr [0x00108f80]

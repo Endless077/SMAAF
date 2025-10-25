@@ -25,24 +25,30 @@ Large malware repository offering access to real-world samples and metadata for
 research, correlation, and enrichment in malware analysis.
 """
 
-# VirusShare
-class VirusShareError(RuntimeError):
-    pass
-
-API_BASE = "https://virusshare.com/apiv2"
-
-from collector.configs.config import settings
-
-###
-
-import json
-import time
+# ───────────────────────────────────────────────────────────────
+# Third-party libraries
 import requests
 
-import sys
+# ───────────────────────────────────────────────────────────────
+# Local application imports
+from collector.configs.config import settings
 
+# ───────────────────────────────────────────────────────────────
+# Standard library
+import json
+import sys
+import time
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Any, Dict, Optional
+
+# ───────────────────────────────────────────────────────────────
+# Constants and exceptions
+API_BASE = "https://virusshare.com/apiv2"
+
+
+class VirusShareError(RuntimeError):
+    """Custom exception for VirusShare API errors."""
+    pass
 
 ###################################################################################################
 

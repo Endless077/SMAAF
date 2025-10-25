@@ -30,7 +30,7 @@ def process_sample(
     sample_path: Path,
     metadata_dir: Path,
     min_length: int = 3,
-    yara_dir: Optional[Path] = "/yara/rules",
+    yara_dir: Optional[Path] = "/usr/yara/rules",
 ) -> Dict[str, Any]:
     """Process a malware sample: extract static info, strings, IOCs, YARA hits, and compute score."""
     logging.info("Processing sample: %s (extracted_dir=%s, yara_dir=%s).",

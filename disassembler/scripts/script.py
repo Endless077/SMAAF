@@ -1,12 +1,14 @@
 #@category Disassembly.Export
+# -*- coding: utf-8 -*-
+
 # ghidra_extract.py
 #
 # Headless script for Ghidra: exports per-function ASM and C pseudocode,
 # and writes metadata-only JSON at <base_dir>/static_information.json.
 
-import json
 import re
 import os
+import json
 from datetime import datetime
 
 from ghidra.framework import Application
@@ -17,12 +19,16 @@ from ghidra.util.task import ConsoleTaskMonitor
 
 # ================= Helpers =================
 def ensure_dir(path):
-    """Ensure directory exists, create it if it does not exist."""
+    """
+    Ensure directory exists, create it if it does not exist.
+    """
     if not os.path.isdir(path):
         os.makedirs(path)
 
 def convert_hex(addr):
-    """Convert integer or Ghidra Address to '0x...'."""
+    """
+    Convert integer or Ghidra Address to '0x...'.
+    """
     try:
         if addr is None:
             return None
@@ -30,11 +36,13 @@ def convert_hex(addr):
             return "0x%x" % addr.getOffset()
         return "0x%x" % int(addr)
     except Exception as e:
-        printerr("[!] convert_hex error: %s" % str(e))
+        printerr("[-] Error during hex conversion: %s" % str(e))
         return None
 
 def slugify(name, maxlen=48):
-    """Make a safe filename slug for function names."""
+    """
+    Make a safe filename slug for function names.
+    """
     if not name:
         name = "func"
     name = name.strip().replace(" ", "_")
@@ -44,7 +52,9 @@ def slugify(name, maxlen=48):
     return name[:maxlen]
 
 def get_sections(program):
-    """Approximate sections from memory blocks (.text, .data)."""
+    """
+    Approximate sections from memory blocks (.text, .data).
+    """
     mem = program.getMemory()
     secs = []
     for block in mem.getBlocks():
@@ -57,11 +67,13 @@ def get_sections(program):
                 "type": "CODE" if block.isExecute() else ("DATA" if block.isWrite() else "OTHER"),
             })
         except Exception as e:
-            printerr("[!] Skipping memory block due to error: %s" % str(e))
+            printerr("[-] Skipping memory block due to error: %s" % str(e))
     return secs
 
 def sections_focus(sections):
-    """Pick concise info about .text and .data if present."""
+    """
+    Pick concise info about .text and .data if present.
+    """
     focus = {}
     for target in (".text", ".data"):
         match = None
@@ -86,16 +98,31 @@ def sections_focus(sections):
     return focus
 
 def collect_basic_info(program):
-    """Collect basic binary/environment information."""
+    """
+    Collect basic binary/environment information.
+    """
     lang = program.getLanguage()
+    try:
+        endian = (
+            "little"
+            if lang.getDefaultSpace().isLittleEndian()
+            else "big"
+        )
+    except Exception:
+        try:
+            endian = "little" if lang.isBigEndian() == False else "big"
+        except Exception:
+            endian = "unknown"
+
     try:
         ghidra_version = Application.getApplicationVersion()
     except Exception:
         ghidra_version = ""
+
     return {
         "arch": str(lang.getProcessor()),
         "bits": int(lang.getDefaultSpace().getPointerSize()) * 8,
-        "endian": "little" if lang.isLittleEndian() else "big",
+        "endian": endian,
         "format": program.getExecutableFormat() or "",
         "machine": str(lang.getLanguageDescription().getLanguageID()),
         "entrypoint": convert_hex(program.getImageBase()),
@@ -104,7 +131,9 @@ def collect_basic_info(program):
     }
 
 def disasm_function_text(program, func):
-    """Produce a simple textual disassembly by iterating instructions."""
+    """
+    Produce a simple textual disassembly by iterating instructions.
+    """
     listing = program.getListing()
     lines = []
     try:
@@ -113,40 +142,45 @@ def disasm_function_text(program, func):
             insn = it.next()
             lines.append("%s: %s" % (convert_hex(insn.getAddress()), insn.toString()))
     except Exception as e:
-        printerr("[!] Disassembly iteration failed for %s: %s" % (func.getName(), str(e)))
+        printerr("[-] Disassembly iteration failed for %s: %s" % (func.getName(), str(e)))
     return "\n".join(lines)
 
 def decompile_function_text(decomp, func):
-    """Return C-like pseudocode if decompiler is available, else None."""
+    """
+    Return C-like pseudocode if decompiler is available, else None.
+    """
     try:
         res = decomp.decompileFunction(func, 60, ConsoleTaskMonitor())
         if not res or not res.getDecompiledFunction():
             return None
         return res.getDecompiledFunction().getC()
     except Exception as e:
-        printerr("[!] Decompile failed for %s: %s" % (func.getName(), str(e)))
+        printerr("[-] Decompile failed for %s: %s" % (func.getName(), str(e)))
         return None
 
 ###################################################################################################
 
 # ================= Main =================
 def run():
-    """Ghidra main run script."""
+    """
+    Ghidra main run script.
+    """
     args = getScriptArgs()
     if not args:
-        printerr("Usage: ghidra_extract.py <base_dir>")
+        printerr("Usage: ghidra.py <base_dir>")
         return
 
-    base_dir = args[0]
+    base_dir = os.path.join(args[0])
     asm_dir = os.path.join(base_dir, "asm")
     c_dir = os.path.join(base_dir, "c")
     ensure_dir(asm_dir)
     ensure_dir(c_dir)
 
     program = currentProgram
+    
     fm = program.getFunctionManager()
 
-    print("[*] Ghidra extract started for: %s" % str(program.getExecutablePath()))
+    print("[+] Ghidra extract started for: %s" % str(program.getExecutablePath()))
 
     info = collect_basic_info(program)
     sections = get_sections(program)
@@ -164,9 +198,9 @@ def run():
     try:
         funs.sort(key=lambda f: f.getEntryPoint().getOffset())
     except Exception as e:
-        printerr("[!] Function list sort failed: %s" % str(e))
+        printerr("[-] Function list sort failed: %s" % str(e))
 
-    print("[*] Functions detected: %d" % len(funs))
+    print("[+] Functions detected: %d" % len(funs))
 
     for idx, f in enumerate(funs, start=1):
         try:
@@ -188,7 +222,7 @@ def run():
                 asm_count += 1
             except Exception as e:
                 asm_rel = None
-                printerr("[!] Failed to write ASM for %s: %s" % (name, str(e)))
+                printerr("[-] Failed to write ASM for %s: %s" % (name, str(e)))
 
             # Dump pseudocode (if available)
             c_rel = None
@@ -202,9 +236,9 @@ def run():
                     c_count += 1
                 except Exception as e:
                     c_rel = None
-                    printerr("[!] Failed to write C pseudocode for %s: %s" % (name, str(e)))
+                    printerr("[-] Failed to write C pseudocode for %s: %s" % (name, str(e)))
             else:
-                print("[i] No pseudocode for function: %s" % name)
+                print("[!] No pseudocode for function: %s" % name)
 
             # Build the metadata struct
             functions_meta.append({
@@ -220,7 +254,7 @@ def run():
                 fname = f.getName()
             except Exception:
                 fname = "<unknown>"
-            printerr("[!] Error exporting function %s: %s" % (fname, str(e)))
+            printerr("[-] Error exporting function %s: %s" % (fname, str(e)))
 
     result = {
         "input_file": str(program.getExecutablePath()),
@@ -239,15 +273,16 @@ def run():
         "disassembled_at": datetime.utcnow().isoformat() + "Z",
     }
 
-    out_json = os.path.join(base_dir, "static_information.json")
+    out_json = os.path.join(base_dir, "disassembly_metadata.json")
+    
     try:
         with open(out_json, "w") as jf:
             json.dump(result, jf, indent=2)
-        print("[*] JSON written at: %s" % out_json)
+        print("[+] JSON written at: %s" % out_json)
     except Exception as e:
-        printerr("[!] Failed to write JSON: %s" % str(e))
+        printerr("[-] Failed to write JSON: %s" % str(e))
 
-    print("[*] Ghidra extract completed.")
+    print("[+] Ghidra extract completed.")
 
 # Execute
 run()

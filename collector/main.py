@@ -6,40 +6,39 @@
 #    |_____|  \'-;__/[\__) )\__/|____| |____||_____|  |_____| 
 #                                                             
 
-# Imports
-import os
-import sys
-import signal
-import logging
-from datetime import datetime, timezone
-
-# Server
+# ───────────────────────────────────────────────────────────────
+# Third-party libraries
 import uvicorn
-
-from fastapi import FastAPI, HTTPException
-from fastapi import File, Form, Query, UploadFile
-
-from fastapi.responses import JSONResponse, RedirectResponse
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.encoders import jsonable_encoder
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, RedirectResponse
 
-# Providers Endpoints
-from collector.sources.endpoints import endpoints_vt
-from collector.sources.endpoints import endpoints_vs
-from collector.sources.endpoints import endpoints_mb
-
-# Project Stuffs
+# ───────────────────────────────────────────────────────────────
+# Local application imports
+from collector.configs.config import *
 from collector.models import *
 from collector.storage import *
 from collector.utilities import *
-from collector.configs.config import *
 
-init_logging(file=False, level=logging.INFO)
+from collector.sources.endpoints import endpoints_mb
+from collector.sources.endpoints import endpoints_vt
+from collector.sources.endpoints import endpoints_vs
+
+# ───────────────────────────────────────────────────────────────
+# Standard library
+import logging
+import os
+import signal
+import sys
+from datetime import datetime, timezone
 
 ###################################################################################################
 
 # To Run: uvicorn main:app --host 127.0.0.1 --port 8080 --reload
 # To Run: uvicorn main:app --host 127.0.0.1 --port 8080
+
+init_logging(file=False, level=logging.INFO)
 
 TAG = "FastAPI"
 

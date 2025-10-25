@@ -6,20 +6,21 @@
 #     \______.' \__/ '.__.' [___]   \'-;__/.',__`  '.__.' 
 #                                         ( ( __))        
 
-# Imports
-from typing import List, Dict, Iterable, Callable, Optional, Any
-import shutil
-
-# Project Modules
-from collector.models import *
+# ───────────────────────────────────────────────────────────────
+# Local application imports
+from collector.configs.config import settings
 from collector.metadata import *
+from collector.models import *
 from collector.utilities import *
 
+from collector.sources.malwarebazaar import MBClient
 from collector.sources.virustotal import VTClient
 from collector.sources.virustshare import VSClient
-from collector.sources.malwarebazaar import MBClient
 
-from collector.configs.config import settings
+# ───────────────────────────────────────────────────────────────
+# Standard library
+import shutil
+from typing import Any, Callable, Dict, Iterable, List, Optional
 
 ###################################################################################################
 

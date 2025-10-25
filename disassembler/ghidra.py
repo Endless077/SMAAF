@@ -11,28 +11,34 @@
 
 from __future__ import annotations
 
+# ───────────────────────────────────────────────────────────────
+# Local application imports
+from disassembler.utilities import *
+from utils.logger import setup_logging
+
+# ───────────────────────────────────────────────────────────────
+# Standard library
+import argparse
+import logging
 import os
 import shlex
 import shutil
-import logging
-import argparse
 import subprocess
+import sys
 from pathlib import Path
-
-from utils.logger import setup_logging
-
-from utilities import *
 
 ###################################################################################################
 
 # ================= Helpers =================
-def _resolve_analyze_headless(ghidra_path: str | None) -> str:
-    """Resolve path to Ghidra's analyzeHeadless."""
-    if ghidra_path:
-        cand = Path(ghidra_path) / "support" / ("analyzeHeadless.bat" if os.name == "nt" else "analyzeHeadless")
+def _resolve_analyze_headless(ghidra: str | None) -> str:
+    """
+    Resolve path to Ghidra's analyzeHeadless.
+    """
+    if ghidra:
+        cand = Path(ghidra) / "support" / ("analyzeHeadless.bat" if os.name == "nt" else "analyzeHeadless")
         if cand.exists():
             return str(cand)
-        raise FileNotFoundError(f"analyzeHeadless not found under: {ghidra_path}")
+        raise FileNotFoundError(f"analyzeHeadless not found under: {ghidra}")
     
     # No path provided: must be in PATH
     exe = "analyzeHeadless"
@@ -48,11 +54,13 @@ def _resolve_analyze_headless(ghidra_path: str | None) -> str:
 def disassemble_ghidra(
     file_path: str,
     output_root: str = "disassembled",
-    ghidra_path: str | None = None,
-    scripts_dir: str | None = None,
+    ghidra: str | None = None,
+    scripts: str | None = None,
     keep_project: bool = False
     ):
-    """Run Ghidra in headless mode with 'ghidra_extract.py'."""
+    """
+    Run Ghidra in headless mode with 'script.py'.
+    """
     src = Path(file_path).expanduser().resolve()
     if not src.exists() or not src.is_file():
         raise FileNotFoundError(f"File not found: {src}")
@@ -62,7 +70,7 @@ def disassemble_ghidra(
     logging.info("Output directory prepared: %s", base_dir)
 
     # Script ghidra_extract.py must be alongside this file (or --scripts-dir)
-    script_file = Path(scripts_dir).expanduser().resolve() / "ghidra_extract.py" if scripts_dir else Path(__file__).with_name("ghidra_extract.py")
+    script_file = Path(scripts).expanduser().resolve() / "script.py" if scripts else Path(__file__).with_name("script.py")
     if not script_file.exists():
         raise FileNotFoundError(f"Ghidra script not found: {script_file}")
 
@@ -72,25 +80,41 @@ def disassemble_ghidra(
     proj_name = f"proj_{src.stem}"
 
     # Resolve analyzeHeadless
-    analyze = _resolve_analyze_headless(ghidra_path)
+    analyze = _resolve_analyze_headless(ghidra)
 
     cmd = [
         analyze,
         str(tmp_proj_dir),
         proj_name,
         "-import", str(src),
+        "-deleteProject",
+        "-overwrite", 
         "-scriptPath", str(script_file.parent),
-        "-postScript", script_file.name,
-        str(base_dir),
+        "-postScript", script_file.name, str(base_dir)
     ]
 
     logging.info("Running Ghidra headless...")
     logging.debug("Command: %s", " ".join(shlex.quote(c) for c in cmd))
 
     try:
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        for line in proc.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            logging.debug(line.strip())
+
+        proc.wait()
+
         if proc.returncode != 0:
-            raise RuntimeError(f"Ghidra headless failed (code {proc.returncode}): {proc.stderr.strip()}")
+            raise RuntimeError(f"Ghidra headless failed (code {proc.returncode})")
+        
     finally:
         if not keep_project and tmp_proj_dir.exists():
             for p in sorted(tmp_proj_dir.rglob("*"), reverse=True):
@@ -108,34 +132,38 @@ def disassemble_ghidra(
 ###################################################################################################
 
 def _cli() -> None:
+    """
+    Command-line interface for Ghidra disassembly module.
+    """
     parser = argparse.ArgumentParser(description="Extract metadata from disassembly (ghidra)")
     parser.add_argument("file", help="Target binary path to analyze.")
-    parser.add_argument("--output", dest="output_root", default="disassembled", help="Results output directory.")
-    parser.add_argument("--ghidra-path", default=None, help="Path to Ghidra's home.")
-    parser.add_argument("--scripts-dir", default=None, help="Directory containing useful Ghidra scripts.")
+    parser.add_argument("--output", default="disassembled", help="Results output directory.")
+    parser.add_argument("--ghidra", required=True, help="Path to Ghidra's home.")
+    parser.add_argument("--scripts", required=True, help="Directory containing useful Ghidra scripts.")
     parser.add_argument("--keep-project", action="store_true", help="Do not delete temporary Ghidra project folder.")
     
     args = parser.parse_args()
 
-    # Ensure required args
-    if not args.file:
-        raise ValueError("Parameter 'file' is required.")
-
     # Startup logs
     setup_logging()
 
-    logging.info(f"Ghidra disassembly file: {args.file}.")
+    logging.info(f"Using Ghidra path: {args.ghidra}")
+    logging.info(f"Using scripts directory: {args.scripts}")
+    logging.info(f"Ghidra disassembly file: {args.file}")
 
     # Startup disassemble with Ghidra
-    disassemble_ghidra(
-        args.file,
-        output_root=args.output_root,
-        ghidra_path=args.ghidra_path,
-        scripts_dir=args.scripts_dir,
-        keep_project=args.keep_project
-    )
-    
-    logging.info(f"Ghidra disassembly complete, results in: {args.output_root}.")
+    try:
+        disassemble_ghidra(
+            args.file,
+            output_root=args.output,
+            ghidra=args.ghidra,
+            scripts=args.scripts,
+            keep_project=args.keep_project
+        )
+        logging.info(f"Ghidra disassembly complete, results saved in: {args.output}")
+    except Exception as e:
+        logging.exception("Ghidra disassembly process failed: %s", e)
+        sys.exit(1)
 
 if __name__ == "__main__":
     _cli()

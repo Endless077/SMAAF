@@ -6,18 +6,25 @@
 #    |________|[___||__]'.__.;__]| ;.__/  '.__.' [___][___||__]\__/[\__) ) 
 #                               [__|                                       for VirusTotal.
 
+# ───────────────────────────────────────────────────────────────
+# Third-party libraries
+from fastapi import APIRouter, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
-from fastapi import APIRouter, UploadFile, Form, HTTPException
 
-from pathlib import Path
-import shutil
-
-###
-
-from collector.sources.virustotal import VTClient, APIError
+# ───────────────────────────────────────────────────────────────
+# Local application imports
 from collector.configs.config import settings
+from collector.sources.virustotal import APIError, VTClient
 
+# ───────────────────────────────────────────────────────────────
+# Standard library
+import shutil
+from pathlib import Path
+
+# ───────────────────────────────────────────────────────────────
+# Router initialization
 router = APIRouter()
+
 
 ###################################################################################################
 

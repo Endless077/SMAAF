@@ -21,21 +21,23 @@ Online malware intelligence platform that aggregates antivirus engines, sandbox 
 and community contributions to provide file, URL, domain, and IP reputation.
 """
 
-# VirusTotal
+# ───────────────────────────────────────────────────────────────
+# Third-party libraries
+import requests
 import vt
 from vt.error import APIError
 
+# ───────────────────────────────────────────────────────────────
+# Local application imports
 from collector.configs.config import settings
 
-###
-
+# ───────────────────────────────────────────────────────────────
+# Standard library
+import asyncio
 import sys
 import time
-import asyncio
-import requests
-
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Any, Dict, Optional
 
 ###################################################################################################
 

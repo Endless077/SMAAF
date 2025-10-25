@@ -6,10 +6,14 @@
 #    |_____||_____|'.__.'  '.__.;__]'.__.'[___][\__) ) 
 #                                                      
 
-# Imports
-from typing import List, Dict, Literal, Optional, Any
+# ───────────────────────────────────────────────────────────────
+# Third-party libraries
 from pydantic import BaseModel, Field
+
+# ───────────────────────────────────────────────────────────────
+# Standard library
 from datetime import datetime
+from typing import Any, Dict, List, Literal, Optional
 
 ###################################################################################################
 

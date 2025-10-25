@@ -6,23 +6,25 @@
 #        `.__.'    \__/[___][___][___]\__/[___]'.__.'[\__) ) 
 #                                                            
 
-# Imports
-import os
-import json
-
-import zipfile
+# ───────────────────────────────────────────────────────────────
+# Third-party libraries
 import pyzipper
-import tempfile
 
+# ───────────────────────────────────────────────────────────────
+# Local application imports
+from collector.configs.config import Settings
+
+# ───────────────────────────────────────────────────────────────
+# Standard library
+import json
+import os
 import shlex
 import shutil
 import subprocess
-
+import tempfile
+import zipfile
 from datetime import datetime
-from typing import List, Tuple, Dict, Generator, Optional, Any
-
-# Project Configs
-from collector.configs.config import Settings
+from typing import Any, Dict, Generator, List, Optional, Tuple
 
 ###################################################################################################
 
