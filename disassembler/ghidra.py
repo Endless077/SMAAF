@@ -137,9 +137,9 @@ def _cli() -> None:
     """
     parser = argparse.ArgumentParser(description="Extract metadata from disassembly (ghidra)")
     parser.add_argument("file", help="Target binary path to analyze.")
-    parser.add_argument("--output", default="disassembled", help="Results output directory.")
     parser.add_argument("--ghidra", required=True, help="Path to Ghidra's home.")
     parser.add_argument("--scripts", required=True, help="Directory containing useful Ghidra scripts.")
+    parser.add_argument("--output", default="disassembled", help="Results output directory.")
     parser.add_argument("--keep-project", action="store_true", help="Do not delete temporary Ghidra project folder.")
     
     args = parser.parse_args()
