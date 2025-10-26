@@ -1,14 +1,43 @@
-# Virtual Environments
-.venv
+# ───────────────────────────────
+# Extracted / analysis output
+extracted/
+reports/
+results/
+tmp/
+*.tmp
+*.bak
 
-# Project Configuration
-logs
-config
-settings
+# ───────────────────────────────
+# Malware samples and disassembly
+download/
+disassembled/
+samples/
 
-# Malwares Storage
-download
-samples
+# ───────────────────────────────
+# Logs and runtime output
+logs/
+*.log
 
-# Python Cache
-__pycache__
+# ───────────────────────────────
+# IDE / editor metadata
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ───────────────────────────────
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# ───────────────────────────────
+# Python cache / build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+build/
+dist/

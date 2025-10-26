@@ -9,37 +9,40 @@
 #     \______.' \______.' |________|[__]`\_]\__/[___]   \'-;__/'.___.'\__/ '.__.' [___]    
 #                                                                                          
 
+# ───────────────────────────────────────────────────────────────
+# Local application imports
+from extractor.utilities.io import *
+from extractor.utilities.yara_engine import *
+from extractor.utilities.ioc_extractor import *
+from extractor.utilities.string_extractor import *
+from extractor.utilities.scoring_system import *
+from utils.logger import setup_logging
 
-import logging
+# ───────────────────────────────────────────────────────────────
+# Standard library
 import argparse
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-
-from utilities.io import *
-from utilities.yara_engine import *
-from utilities.ioc_extractor import *
-from utilities.string_extractor import *
-
-from utilities.scoring_system import *
-
-from utils.logger import setup_logging
 
 ###################################################################################################
 
 def process_sample(
     sample_path: Path,
-    metadata_dir: Path,
+    metadata: Path,
     min_length: int = 3,
-    yara_dir: Optional[Path] = "/usr/yara/rules",
+    yara_dir: Optional[Path] = "./yara/rules",
 ) -> Dict[str, Any]:
-    """Process a malware sample: extract static info, strings, IOCs, YARA hits, and compute score."""
+    """
+    Process a malware sample: extract static info, strings, IOCs, YARA hits, and compute score.
+    """
     logging.info("Processing sample: %s (extracted_dir=%s, yara_dir=%s).",
-                 sample_path, metadata_dir, yara_dir)
+                 sample_path, metadata, yara_dir)
 
     # 1) Load static analysis info and disassembly texts
     logging.info("Loading static info and disassembled texts.")
-    static_info = load_static_info(metadata_dir)
-    texts = read_text_files(metadata_dir, (".asm", ".c", ".txt", ".h"))
+    static_info = load_static_info(metadata)
+    texts = read_text_files(metadata, (".asm", ".c", ".txt", ".h"))
 
     # 2) Extract strings via native 'strings', Python and FLOSS
     logging.info("Extracting strings from binary.")
@@ -48,8 +51,12 @@ def process_sample(
         logging.warning("Native 'strings' returned nothing, falling back to Python extractor.")
         s_strings = strings_python(sample_path, min_length)
 
+    logging.info("Running rabin2 for string extraction.")
+    s_rabin = rabin2(sample_path, min_length)
+
     logging.info("Running FLOSS for string deobfuscation.")
     s_floss = floss(sample_path, min_length)
+    setup_logging()
 
     # Include extra strings coming from static_info metadata
     logging.debug("Collecting strings from metadata.")
@@ -62,8 +69,8 @@ def process_sample(
                 for it in v:
                     json_strings.append({"string": str(it), "source": "static_information", "offset": None})
 
-    # Deduplicate all strings
-    combined_records = dedupe((s_floss or []) + (s_strings or []) + json_strings)
+    # Deduplicate all stringsa
+    combined_records = dedupe((s_floss or []) + (s_strings or []) + (s_rabin or []))
     plain_strings = [r["string"] for r in combined_records]
     logging.info("Collected %d unique strings", len(combined_records))
 
@@ -74,7 +81,7 @@ def process_sample(
         all_lines.extend(content.splitlines())
     logging.debug("Built corpus with %d lines for IOC extraction.", len(all_lines))
 
-    # min_string_length) Extract IOCs
+    # 4) Extract IOCs
     logging.info("Extracting IOCs from strings and source texts.")
     iocs_sets = extract_iocs(all_lines)
     iocs_lists = to_sorted_lists(iocs_sets)
@@ -121,28 +128,29 @@ def process_sample(
 
 def _cli() -> None:
     parser = argparse.ArgumentParser(description="String & Signature Extractor (SS Extractor).")
-    parser.add_argument("sample", help="Malware sample path.")
-    parser.add_argument("metadata_dir", help="Metadata disassembler path.")
-    parser.add_argument("out_json_dir", help="Path to output JSON file report.")
-    parser.add_argument("min_length", default="/yara/rules", help="Minimum string length for retrieval.")
-    parser.add_argument("yara_rules", nargs="?", default=None, help="Directory with .yar rules (optional).")
+    parser.add_argument("sample", help="Path to the malware sample.")
+    parser.add_argument("-m", "--metadata", required=True, help="Path to disassembler metadata directory.")
+    parser.add_argument("-o", "--output", default="./extracted/extracted.json", help="Path to output JSON report.")
+    parser.add_argument("-l", "--length", type=int, default=4, help="Minimum string length for extraction.")
+    parser.add_argument("-r", "--rules", default="./yara/rules", help="Directory containing YARA rules (optional).")
     args = parser.parse_args()
 
+    # Startup logs
     setup_logging()
     
     logging.info("Starting SS Extractor pipeline...")
 
+    # Startup extraction pipeline
     result = process_sample(
         sample_path=Path(args.sample),
-        metadata_dir=Path(args.metadata_dir),
-        min_length=int(args.min_length),
-        yara_dir=Path(args.yara_rules) if args.yara_rules else None,
+        metadata=Path(args.metadata),
+        min_length=args.length,
+        yara_dir=Path(args.rules) if args.rules else None,
     )
 
-    logging.info("Writing results to %s", args.out_json_dir)
-
-    write_json(Path(args.out_json_dir), result)
-
+    # Save results in JSON format
+    logging.info("Writing results to %s", args.output)
+    write_json(Path(args.output), result)
     logging.info("SS Extractor finished successfully.")
 
 if __name__ == "__main__":

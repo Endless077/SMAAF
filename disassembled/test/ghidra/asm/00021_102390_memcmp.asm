@@ -1,2 +1,0 @@
-0x102390: ENDBR64
-0x102394: JMP qword ptr [0x00108f20]

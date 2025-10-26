@@ -5,26 +5,48 @@
 #     _| |_\  `-'  /\ `.___.'\  _| |__/ | > '  < | |, | |    // | |,| \__. | |,| \__. | | |     
 #    |_____|`.___.'  `.____ .' |________|[__]`\_]\__/[___]   \'-;__/'.___.'\__/ '.__.' [___]    
 #                                                                                               
-import re
+
+# ───────────────────────────────────────────────────────────────
+# Third-party libraries
 import idna
-import logging
+
+# ───────────────────────────────────────────────────────────────
+# Standard library
 import ipaddress
+import logging
+import re
+from typing import Any, Dict, Iterable, List
 from urllib.parse import urlparse
-from typing import  List, Dict, Iterable, Any
 
-EMAIL_RE  = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", re.IGNORECASE)
-DOMAIN_RE = re.compile(r"(?:(?<![A-Za-z0-9-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63})(?![A-Za-z0-9-])")
-REG_RE    = re.compile(r"(?:HKEY_[A-Z_]+|HKLM|HKCU|HKCR|HKU|HKCC)\\[^\s'\"\\]+", re.IGNORECASE)
-URL_RE    = re.compile(r"https?://[^\s'\"\\)<>]+", re.IGNORECASE)
-IP_RE     = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){3}\b")
-
+# ───────────────────────────────────────────────────────────────
+# Regular expression patterns
+EMAIL_RE = re.compile(
+    r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
+    re.IGNORECASE,
+)
+DOMAIN_RE = re.compile(
+    r"(?:(?<![A-Za-z0-9-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63})(?![A-Za-z0-9-])"
+)
+REG_RE = re.compile(
+    r"(?:HKEY_[A-Z_]+|HKLM|HKCU|HKCR|HKU|HKCC)\\[^\s'\"\\]+",
+    re.IGNORECASE,
+)
+URL_RE = re.compile(
+    r"https?://[^\s'\"\\)<>]+",
+    re.IGNORECASE,
+)
+IP_RE = re.compile(
+    r"\b\d{1,3}(?:\.\d{1,3}){3}\b"
+)
 TRAILING_PUNCT_RE = re.compile(r"[)\]\}\>.,;:!?]+$")
 
 ###################################################################################################
 
 # ================= Validators/Normalizers =================
 def _valid_public_ipv4(ip_str: str) -> bool:
-    """Return True if IPv4 is syntactically valid and publicly routable."""
+    """
+    Return True if IPv4 is syntactically valid and publicly routable.
+    """
     # Exclude private, loopback, multicast, reserved, link-local
     try:
         ip = ipaddress.IPv4Address(ip_str)
@@ -37,7 +59,9 @@ def _valid_public_ipv4(ip_str: str) -> bool:
         return False
     
 def _domain_from_url(u: str) -> str | None:
-    """Extract and normalize the hostname from a URL."""
+    """
+    Extract and normalize the hostname from a URL.
+    """
     try:
         parse = urlparse(u)
         host = parse.hostname or ""
@@ -52,11 +76,15 @@ def _domain_from_url(u: str) -> str | None:
         return None
 
 def _strip_trailing_punct(s: str) -> str:
-    """Strip common trailing punctuation from a token-like string."""
+    """
+    Strip common trailing punctuation from a token-like string.
+    """
     return TRAILING_PUNCT_RE.sub("", s.strip())
 
 def _normalize_domain(d: str) -> str:
-    """Normalize a domain to ASCII/IDNA and lowercase without surrounding dots."""
+    """
+    Normalize a domain to ASCII/IDNA and lowercase without surrounding dots.
+    """
     d = d.strip().strip(".").lower()
     d = _strip_trailing_punct(d)
     try:
@@ -71,7 +99,9 @@ def _normalize_domain(d: str) -> str:
         return d
 
 def _normalize_registry(key: str) -> str:
-    """Canonicalize common Windows registry hive names to short forms."""
+    """
+    Canonicalize common Windows registry hive names to short forms.
+    """
     k = key.strip()
     repl = {
         r"^HKEY_LOCAL_MACHINE": "HKLM",
@@ -89,7 +119,9 @@ def _normalize_registry(key: str) -> str:
 
 # ================= Context Manager =================
 def find_context(texts: Dict[str, str], token: str, ctx_lines: int) -> List[Dict[str, Any]]:
-    """Find occurrences of a token and return surrounding line context."""
+    """
+    Find occurrences of a token and return surrounding line context.
+    """
     logging.info("Searching for token '%s' with ±%d lines of context.", token, ctx_lines)
     res: List[Dict[str, Any]] = []
     tkn = token.lower()
@@ -107,7 +139,9 @@ def find_context(texts: Dict[str, str], token: str, ctx_lines: int) -> List[Dict
     return res
 
 def map_iocs_context(texts: Dict[str, str], iocs_lists: Dict[str, List[str]], ctx_lines: int) -> Dict[str, List[Dict[str, Any]]]:
-    """Map each IOC token to its occurrences and context in a corpus."""
+    """
+    Map each IOC token to its occurrences and context in a corpus.
+    """
     logging.info("Mapping contexts for %d IOC kinds with ±%d lines", len(iocs_lists), ctx_lines)
     contexts: Dict[str, List[Dict[str, Any]]] = {k: [] for k in iocs_lists.keys()}
     for kind, toks in iocs_lists.items():
@@ -123,7 +157,9 @@ def map_iocs_context(texts: Dict[str, str], iocs_lists: Dict[str, List[str]], ct
 
 # ================= Extractor =================
 def extract_iocs(lines: Iterable[str]) -> Dict[str, set[str]]:
-    """Extract IOCs (IPs, URLs, registry keys, emails, domains) from text lines."""
+    """
+    Extract IOCs (IPs, URLs, registry keys, emails, domains) from text lines.
+    """
     logging.info("Starting IOC extraction...")
     iocs = {"ips": set(), "urls": set(), "registry": set(), "emails": set(), "domains": set()}
 
@@ -169,7 +205,9 @@ def extract_iocs(lines: Iterable[str]) -> Dict[str, set[str]]:
     return iocs
 
 def to_sorted_lists(iocs: Dict[str, set[str]]) -> Dict[str, List[str]]:
-    """Convert IOC sets to sorted lists for stable output."""
+    """
+    Convert IOC sets to sorted lists for stable output.
+    """
     logging.info("Converting IOC sets to sorted lists...")
     sorted_iocs = {k: sorted(v) for k, v in iocs.items()}
     logging.debug(

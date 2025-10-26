@@ -53,9 +53,9 @@ def _resolve_analyze_headless(ghidra: str | None) -> str:
 # ================= Disassemble =================
 def disassemble_ghidra(
     file_path: str,
-    output_root: str = "disassembled",
     ghidra: str | None = None,
     scripts: str | None = None,
+    output: str = "disassembled",
     keep_project: bool = False
     ):
     """
@@ -66,7 +66,7 @@ def disassemble_ghidra(
         raise FileNotFoundError(f"File not found: {src}")
 
     # Create output tree: disassembled/<stem>/ghidra/
-    base_dir, json_path, asm_dir, c_dir = make_ghidra_dirs(output_root, src)
+    base_dir, json_path, asm_dir, c_dir = make_ghidra_dirs(output, src)
     logging.info("Output directory prepared: %s", base_dir)
 
     # Script ghidra_extract.py must be alongside this file (or --scripts-dir)
@@ -155,9 +155,9 @@ def _cli() -> None:
     try:
         disassemble_ghidra(
             args.file,
-            output_root=args.output,
             ghidra=args.ghidra,
             scripts=args.scripts,
+            output=args.output,
             keep_project=args.keep_project
         )
         logging.info(f"Ghidra disassembly complete, results saved in: {args.output}")

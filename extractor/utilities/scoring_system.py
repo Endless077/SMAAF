@@ -7,13 +7,14 @@
 #                                                  ( ( __))            \__.'                                   
 
 from __future__ import annotations
-import re
-import math
+
+# ───────────────────────────────────────────────────────────────
+# Standard library
 import logging
-
+import math
+import re
 from dataclasses import dataclass
-
-from typing import List, Dict, Tuple, Set, Any
+from typing import Any, Dict, List, Set, Tuple
 
 ###################################################################################################
 
@@ -100,7 +101,9 @@ API_PATTERNS: Dict[str, List[re.Pattern]] = {
 }
 
 def _any_regex_hit(text: str, patterns: List[re.Pattern]) -> bool:
-    """Return True if any regex matches the given text."""
+    """
+    Return True if any regex matches the given text.
+    """
     return any(p.search(text) for p in patterns)
 
 ###################################################################################################
@@ -111,7 +114,9 @@ URL_RE = re.compile(r"^(?:https?://)[^\s/$.?#].[^\s]*$", re.IGNORECASE)
 DOMAIN_RE = re.compile(r"^(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?<!-)(?:\.[A-Za-z]{2,63})+$")
 
 def _dedup_and_filter(items: List[str] | None, pattern: re.Pattern) -> List[str]:
-    """Deduplicate, strip, and filter items against a regex pattern."""
+    """
+    Deduplicate, strip, and filter items against a regex pattern.
+    """
     if not items:
         return []
     uniq: Set[str] = set()
@@ -128,7 +133,9 @@ def _dedup_and_filter(items: List[str] | None, pattern: re.Pattern) -> List[str]
 
 # ================= Scoring subroutines =================
 def _score_iocs(iocs: Dict[str, List[str]]) -> Tuple[int, List[str]]:
-    """Score based on IOCs: URLs, IPs, domains, registry keys."""
+    """
+    Score based on IOCs: URLs, IPs, domains, registry keys.
+    """
     W, C = CFG.WEIGHTS, CFG.CAPS
     score = 0
     reasons = []
@@ -169,7 +176,9 @@ def _score_iocs(iocs: Dict[str, List[str]]) -> Tuple[int, List[str]]:
     return score, reasons
 
 def _score_api_behaviors(texts: Dict[str, str]) -> Tuple[int, List[str]]:
-    """Score based on suspicious API usage."""
+    """
+    Score based on suspicious API usage.
+    """
     if not texts:
         logging.debug("No texts provided for API behavior scoring.")
         return 0, []
@@ -184,7 +193,9 @@ def _score_api_behaviors(texts: Dict[str, str]) -> Tuple[int, List[str]]:
     return score, reasons
 
 def _score_obfuscation(strings_records: List[Dict[str, Any]]) -> Tuple[int, List[str]]:
-    """Score based on FLOSS string deobfuscation ratio."""
+    """
+    Score based on FLOSS string deobfuscation ratio.
+    """
     if not strings_records:
         logging.debug("No string records provided for obfuscation scoring.")
         return 0, []
@@ -201,7 +212,9 @@ def _score_obfuscation(strings_records: List[Dict[str, Any]]) -> Tuple[int, List
     return score, reasons
 
 def _score_yara(yara_bin: List[Dict[str, Any]], yara_text: List[Dict[str, Any]]) -> Tuple[int, List[str]]:
-    """Score based on YARA matches (binary + text)."""
+    """
+    Score based on YARA matches (binary + text).
+    """
     W, C = CFG.WEIGHTS, CFG.CAPS
     score = 0
     reasons = []
@@ -241,7 +254,9 @@ def _score_yara(yara_bin: List[Dict[str, Any]], yara_text: List[Dict[str, Any]])
 ###################################################################################################
 
 def _confidence_from_evidence(total_norm: int, evidence_categories: int) -> str:
-    """Estimate confidence based on normalized score and evidence variety."""
+    """
+    Estimate confidence based on normalized score and evidence variety.
+    """
     if total_norm >= 80 and evidence_categories >= 3:
         return "high"
     if total_norm >= 50 and evidence_categories >= 2:
@@ -249,7 +264,9 @@ def _confidence_from_evidence(total_norm: int, evidence_categories: int) -> str:
     return "low"
 
 def _normalize(total_score: float) -> int:
-    """Normalize raw score into 0–100 with exponential soft cap."""
+    """
+    Normalize raw score into 0–100 with exponential soft cap.
+    """
     norm = 100.0 * (1.0 - math.exp(-float(total_score) / CFG.norm_scale))
     return int(round(min(100.0, max(0.0, norm))))
 
@@ -307,7 +324,7 @@ def compute_score(
     normalized = _normalize(total_raw)
     confidence = _confidence_from_evidence(normalized, categories_hit)
 
-    logging.info("Final score=%d (raw=%d), confidence=%s, categories=%d",
+    logging.info("Scroing: score=%d (raw=%d), confidence=%s, categories=%d",
              normalized, total_raw, confidence, categories_hit)
 
     return {

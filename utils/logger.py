@@ -37,7 +37,7 @@ def setup_logging(
     for h in list(root.handlers):
         root.removeHandler(h)
 
-    log_filename: str | None = None
+    filename: str | None = None
     handlers = [logging.StreamHandler(sys.stdout)]
 
     if file:
@@ -45,12 +45,12 @@ def setup_logging(
         os.makedirs(logs_dir, exist_ok=True)
 
         if isinstance(file, str):
-            log_filename = file
+            filename = file
         else:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            log_filename = str(logs_dir / f"log_{timestamp}.log")
+            filename = str(logs_dir / f"log_{timestamp}.log")
 
-        handlers.append(logging.FileHandler(log_filename, encoding="utf-8"))
+        handlers.append(logging.FileHandler(filename, encoding="utf-8"))
 
     logging.basicConfig(
         level=level,
@@ -59,11 +59,11 @@ def setup_logging(
         handlers=handlers,
     )
 
-    if log_filename:
-        logging.info(f"Logging configured with file: {log_filename}")
-    else:
-        logging.info("Logging configured to console only.")
+#    if filename:
+#        logging.info(f"Logging configured with file: {filename}")
+#    else:
+#        logging.info("Logging configured to console only.")
 
-    return log_filename
+    return filename
 
 ###################################################################################################

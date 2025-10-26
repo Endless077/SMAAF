@@ -34,7 +34,6 @@ class Providers(str, Enum):
 
 ###################################################################################################
 
-
 # Init Logging
 def init_logging(file=None, level=None):
     """

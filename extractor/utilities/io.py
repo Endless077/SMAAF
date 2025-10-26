@@ -6,16 +6,20 @@
 #    |_____|`.___.'  
 #                    
 
+# ───────────────────────────────────────────────────────────────
+# Standard library
 import json
 import logging
-from typing import Dict
 from pathlib import Path
+from typing import Dict
 
 ###################################################################################################
 
 # ================= Loaders =================
 def load_static_info(extracted_dir: Path) -> dict:
-    """Load static analysis info from a JSON file or from the first JSON in a directory."""
+    """
+    Load static analysis info from a JSON file or from the first JSON in a directory.
+    """
     if extracted_dir.is_file():
         logging.info("Loading static info from JSON file: %s", extracted_dir)
         try:
@@ -43,7 +47,9 @@ def load_static_info(extracted_dir: Path) -> dict:
 
 # ================= I/O =================
 def read_text_files(root: Path, exts=(".asm", ".c", ".txt", ".h")) -> dict[str, str]:
-    """Recursively read text files with selected extensions into a path->content map."""
+    """
+    Recursively read text files with selected extensions into a path->content map.
+    """
     texts: dict[str, str] = {}
     logging.info("Scanning directory %s for text files with extensions %s", root, exts)
 
@@ -60,7 +66,9 @@ def read_text_files(root: Path, exts=(".asm", ".c", ".txt", ".h")) -> dict[str, 
     return texts
 
 def write_json(path: Path, data: Dict) -> None:
-    """Write a Python dict to pretty-printed UTF-8 JSON."""
+    """
+    Write a Python dict to pretty-printed UTF-8 JSON.
+    """
     try:
         # Ensure parent directories exist
         path.parent.mkdir(parents=True, exist_ok=True)

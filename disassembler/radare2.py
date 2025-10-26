@@ -363,7 +363,7 @@ def _decompile_text(r2, addr: int) -> Optional[str]:
 # ================= Disassemble =================
 def disassemble_radare2(
     file_path: str,
-    output_root: str = "disassembled",
+    output: str = "disassembled",
     deep: bool = False,
     timeout: int = 300,
 ):
@@ -382,7 +382,7 @@ def disassemble_radare2(
         raise IsADirectoryError(f"Target is not a file: {src}")
 
     # Prepare output directory structure
-    base_dir, json_path, asm_dir, c_dir = make_radare_dirs(output_root, src)
+    base_dir, json_path, asm_dir, c_dir = make_radare_dirs(output, src)
     logging.info("Output directory prepared: %s", base_dir)
 
     # Initialize radare2 in headless mode
@@ -527,7 +527,7 @@ def _cli() -> None:
     try:
         disassemble_radare2(
             args.file,
-            output_root=args.output,
+            output=args.output,
             deep=args.deep,
             timeout=args.timeout
         )
