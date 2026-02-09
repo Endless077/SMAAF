@@ -1,6 +1,6 @@
-![Wallpaper](https://github.com/Endless077/SMAF/blob/main/docs/logo.png)
+![Wallpaper](https://github.com/Endless077/SMAAF/blob/main/docs/logo.png)
 
-# 🧰 Static Malware Analysis Automation Framework (SMAF)
+# 🧰 Static Malware Analysis Automation Framework (SMAAF)
 
 The system analyzes malware binaries without execution, identifies indicators of compromise (IOCs), predicts behaviors, and generates actionable reports for security teams.
 
@@ -43,7 +43,7 @@ Do **not** execute samples directly - this framework performs *static* analysis 
 
 ## 🛠️ Local Installation
 
-> Example setup on Linux / WSL2 with Python 3.10+.
+> Example setup on Linux / WSL2.
 
 1. **Clone the repository**
 ```bash
@@ -69,7 +69,7 @@ pip install -r requirements.txt
 - **FLOSS** — for extracting obfuscated strings.
 - **YARA** and **yara-python** — for signature-based detection.
 
- ⚠️ **Note:**  
+⚠️ **Note:**  
 > For installation, it is recommended to follow the **official documentation** of each tool to ensure compatibility with your operating system.
 > If any of the required tools or dependencies are missing, the framework will automatically report the issue during runtime with a clear error message.  
 
@@ -84,8 +84,14 @@ MB_API_KEY: str = os.getenv("MB_API_KEY", "")
 ## 🐳 Docker Installation (Optional)
 
 1. **Build the Docker image**
+```bash
+docker build --no-cache -t smaaf:latest .
+```
 
 2. **Run the container**
+```bash
+docker run -it --name <container> -p 8000:8000 smaaf:latest
+```
 
 
 ## ⛏️ Modules Helpers
@@ -175,7 +181,7 @@ FastAPI is a modern web framework for building APIs with Python 3.7+ based on st
 
 ### Ghidra ⚙️
 
-Ghidra is a free, open-source software reverse engineering (SRE) suite developed by the NSA. It provides disassembly, decompilation, program analysis, and scripting. SMAF uses **headless mode** (`analyzeHeadless`) to batch-disassemble binaries in automated pipelines.
+Ghidra is a free, open-source software reverse engineering (SRE) suite developed by the NSA. It provides disassembly, decompilation, program analysis, and scripting. SMAAF uses **headless mode** (`analyzeHeadless`) to batch-disassemble binaries in automated pipelines.
 
 [More information here](https://github.com/NationalSecurityAgency/ghidra)
 
@@ -187,7 +193,7 @@ radare2 (r2) is an open-source reverse engineering framework offering disassembl
 
 ### YARA 🧩
 
-YARA is a pattern-matching tool widely used in malware research to identify families and traits via **rules** that match byte patterns, strings, and metadata. SMAF leverages YARA (and `yara-python`) to detect known signatures and extract IOCs.
+YARA is a pattern-matching tool widely used in malware research to identify families and traits via **rules** that match byte patterns, strings, and metadata. SMAAF leverages YARA (and `yara-python`) to detect known signatures and extract IOCs.
 
 [More information here](https://github.com/VirusTotal/yara)
 
@@ -214,4 +220,4 @@ For support, email [antonio.garofalo125@gmail.com](mailto:antonio.garofalo125@gm
 
 ## 📝 Documentation
 
-See the documentation project **[here](https://github.com/Endless077/SMAF/blob/main/docs.pdf)**.
+See the documentation project **[here](https://github.com/Endless077/SMAAF/blob/main/docs/Static%20Malware%20Analysis%20Automation%20Framework.pdf)**.

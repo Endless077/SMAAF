@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  smaaf:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smaaf
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./samples:/app/samples
+      - ./download:/app/download
+    environment:
+      - TZ=Etc/UTC
+      - PYTHONPATH=/app
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
