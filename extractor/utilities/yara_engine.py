@@ -152,11 +152,9 @@ def scan_file(ruleset: yara.Rules, target: Path, *, max_strings: int = 25, timeo
             output.append(_serialize_match(m, max_strings=max_strings))
         logging.info("YARA file scan complete: %d matches in %s", len(output), target)
     except yara.TimeoutError:
-        logging.warning("YARA timeout on file: %s (timeout=%ds).", target, time)
-    except TypeError as e:
-        logging.warning("YARA file scan failed for %s: %s", target, e)
+        logging.error("YARA timeout on file: %s (timeout=%ds).", target, time)
     except Exception as e:
-        logging.warning("YARA file scan failed for %s: %s", target, e)
+        logging.error("YARA file scan failed for %s: %s", target, e)
     return output
 
 def scan_text(ruleset: yara.Rules, text: str, *, max_strings: int = 25, timeout: int = 10) -> List[Dict[str, Any]]:
@@ -173,11 +171,9 @@ def scan_text(ruleset: yara.Rules, text: str, *, max_strings: int = 25, timeout:
             output.append(_serialize_match(m, max_strings=max_strings))
         logging.info("YARA text scan complete: %d matches.", len(output))
     except yara.TimeoutError:
-        logging.warning("YARA timeout on text buffer (timeout=%ds).", int(timeout))
-    except TypeError as e:
-        logging.warning("YARA text scan failed: %s", e)
+        logging.error("YARA timeout on text buffer (timeout=%ds).", int(timeout))
     except Exception as e:
-        logging.warning("YARA text scan failed: %s", e)
+        logging.error("YARA text scan failed for %s: %s", text, e)
     return output
 
 ###################################################################################################

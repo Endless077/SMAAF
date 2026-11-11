@@ -28,16 +28,16 @@ from typing import Any, Dict, List, Optional
 ###################################################################################################
 
 def process_sample(
-    sample_path: Path,
+    sample: Path,
     metadata: Path,
     min_length: int = 3,
-    yara_dir: Optional[Path] = "./yara/rules",
+    rules: Optional[Path] = "./yara/rules",
 ) -> Dict[str, Any]:
     """
     Process a malware sample: extract static info, strings, IOCs, YARA hits, and compute score.
     """
-    logging.info("Processing sample: %s (extracted_dir=%s, yara_dir=%s).",
-                 sample_path, metadata, yara_dir)
+    logging.info("Processing sample: %s (extracted=%s, rules=%s).",
+                 sample, metadata, rules)
 
     # 1) Load static analysis info and disassembly texts
     logging.info("Loading static info and disassembled texts.")
@@ -46,16 +46,16 @@ def process_sample(
 
     # 2) Extract strings via native 'strings', Python and FLOSS
     logging.info("Extracting strings from binary.")
-    s_strings = strings_native(sample_path, min_length)
+    s_strings = strings_native(sample, min_length)
     if not s_strings:
         logging.warning("Native 'strings' returned nothing, falling back to Python extractor.")
-        s_strings = strings_python(sample_path, min_length)
+        s_strings = strings_python(sample, min_length)
 
     logging.info("Running rabin2 for string extraction.")
-    s_rabin = rabin2(sample_path, min_length)
+    s_rabin = rabin2(sample, min_length)
 
     logging.info("Running FLOSS for string deobfuscation.")
-    s_floss = floss(sample_path, min_length)
+    s_floss = floss(sample, min_length)
     setup_logging()
 
     # Include extra strings coming from static_info metadata
@@ -91,13 +91,16 @@ def process_sample(
     iocs_context = map_iocs_context(texts, iocs_lists, 2)
 
     # 6) YARA analysis: binary + text corpus
-    logging.info("Compiling YARA rules (if provided).")
-    rules = compile_path(yara_dir)
-    yara_bin_matches: List[Dict[str, Any]] = scan_file(rules, sample_path) if rules else []
+    if rules:
+        logging.info("Compiling YARA rules from: %s", rules)
+        rules = compile_path(rules)
+    else:
+        logging.info("YARA rules directory not specified, skipping compilation.")
+    
     combined_text = "\n".join(all_lines)
+    yara_bin_matches: List[Dict[str, Any]] = scan_file(rules, sample) if rules else []
     yara_text_matches: List[Dict[str, Any]] = scan_text(rules, combined_text) if rules else []
-    logging.info("YARA matches: %d on binary, %d on text corpus.",
-                 len(yara_bin_matches), len(yara_text_matches))
+    logging.info("YARA matches: %d on binary, %d on text corpus.", len(yara_bin_matches), len(yara_text_matches))
 
     # 7) Compute advanced scoring
     logging.info("Starting final score computing.")
@@ -111,9 +114,9 @@ def process_sample(
     )
 
     # 8) Build output dictionary
-    logging.info("Processing complete for %s", sample_path)
+    logging.info("Processing complete for %s", sample)
     return {
-        "file": str(sample_path),
+        "file": str(sample),
         "static_info": static_info,
         "strings": combined_records,
         "iocs": iocs_lists,
@@ -130,9 +133,9 @@ def _cli() -> None:
     parser = argparse.ArgumentParser(description="String & Signature Extractor (SS Extractor).")
     parser.add_argument("sample", help="Path to the malware sample.")
     parser.add_argument("-m", "--metadata", required=True, help="Path to disassembler metadata directory.")
+    parser.add_argument("-l", "--length", type=int, default=3, help="Minimum string length for extraction.")
     parser.add_argument("-o", "--output", default="./extracted/extracted.json", help="Path to output JSON report.")
-    parser.add_argument("-l", "--length", type=int, default=4, help="Minimum string length for extraction.")
-    parser.add_argument("-r", "--rules", default="./yara/rules", help="Directory containing YARA rules (optional).")
+    parser.add_argument("-r", "--rules", help="Directory containing YARA rules.")
     args = parser.parse_args()
 
     # Startup logs
@@ -142,10 +145,10 @@ def _cli() -> None:
 
     # Startup extraction pipeline
     result = process_sample(
-        sample_path=Path(args.sample),
+        sample=Path(args.sample),
         metadata=Path(args.metadata),
         min_length=args.length,
-        yara_dir=Path(args.rules) if args.rules else None,
+        rules=Path(args.rules) if args.rules else None,
     )
 
     # Save results in JSON format
